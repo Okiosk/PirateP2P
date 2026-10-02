@@ -52,7 +52,7 @@ export class ProjectileManager {
         };
 
         this.cannonballs.push(ball);
-      }, idx * 75); // 75ms rapid rolling volley
+      }, idx * 35); // 35ms ultra rapid rolling volley
     });
   }
 
@@ -80,7 +80,7 @@ export class ProjectileManager {
           life: 3.5,
           trailTimer: 0
         });
-      }, idx * 75);
+      }, idx * 35);
     });
   }
 
@@ -142,7 +142,7 @@ export class ProjectileManager {
         const hitHeight = target.hitHeight || 4.5;
 
         if (dx * dx + dz * dz < hitRadius * hitRadius && dy < hitHeight) {
-          const dmg = 25 + Math.floor(Math.random() * 8); // 25-32 damage
+          const dmg = 18 + Math.floor(Math.random() * 8); // 18-25 damage
           this.effects.createShipHit(b.pos, dmg);
           sounds.playHit();
 

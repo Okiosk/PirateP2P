@@ -8,12 +8,12 @@ export class CameraFollow {
 
     this.target = null; // Reference to Ship
 
-    // Fixed 3rd person bird's eye / high angle (vue en plongée) parameters
-    this.distance = 28.0; // Horizontal distance behind ship
-    this.height = 20.0;   // Height above water (plongée / vue du dessus)
-    this.lookAhead = 5.0; // Look-at point ahead of ship
+    // Fixed 3rd person bird's eye / high angle (vue en plongée dézoomée) parameters
+    this.distance = 50.0; // Horizontal distance behind ship (dezoom)
+    this.height = 38.0;   // Height above water (plongée dézoomée)
+    this.lookAhead = 10.0; // Look-at point ahead of ship
 
-    this.currentCamPos = new THREE.Vector3(0, 20, -30);
+    this.currentCamPos = new THREE.Vector3(0, 38, -50);
     this.currentLookAt = new THREE.Vector3(0, 0, 0);
 
     // Prevent context menu on right click so right click shooting works smoothly
@@ -40,7 +40,7 @@ export class CameraFollow {
     const shipYaw = this.target.yaw;
 
     // Dynamic FOV for speed boost
-    const targetFOV = (this.target.isBoosting ? 70 : 58);
+    const targetFOV = (this.target.isBoosting ? 74 : 62);
     if (Math.abs(this.camera.fov - targetFOV) > 0.1) {
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, dt * 5.0);
       this.camera.updateProjectionMatrix();

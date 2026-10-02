@@ -12,8 +12,8 @@ export const SHIP_TIERS = [
     baseHp: 300,
     baseSpeed: 38.0,
     turnSpeed: 1.7,
-    cannons: 4,
-    reloadTime: 2.2,
+    cannons: 8,
+    reloadTime: 0.85,
     hitRadius: 3.8,
     cost: 0
   },
@@ -25,8 +25,8 @@ export const SHIP_TIERS = [
     baseHp: 480,
     baseSpeed: 42.0,
     turnSpeed: 1.5,
-    cannons: 5,
-    reloadTime: 2.0,
+    cannons: 10,
+    reloadTime: 0.75,
     hitRadius: 4.2,
     cost: 150
   },
@@ -38,8 +38,8 @@ export const SHIP_TIERS = [
     baseHp: 700,
     baseSpeed: 46.0,
     turnSpeed: 1.35,
-    cannons: 6,
-    reloadTime: 1.8,
+    cannons: 12,
+    reloadTime: 0.65,
     hitRadius: 4.4,
     cost: 350
   },
@@ -51,8 +51,8 @@ export const SHIP_TIERS = [
     baseHp: 950,
     baseSpeed: 50.0,
     turnSpeed: 1.25,
-    cannons: 7,
-    reloadTime: 1.6,
+    cannons: 14,
+    reloadTime: 0.55,
     hitRadius: 4.8,
     cost: 600
   },
@@ -64,8 +64,8 @@ export const SHIP_TIERS = [
     baseHp: 1300,
     baseSpeed: 56.0,
     turnSpeed: 1.2,
-    cannons: 8,
-    reloadTime: 1.4,
+    cannons: 16,
+    reloadTime: 0.45,
     hitRadius: 5.0,
     cost: 1000
   }
@@ -90,6 +90,8 @@ export class Ship {
     // Movement & Physics
     this.position = new THREE.Vector3(0, 0, 0);
     this.velocity = new THREE.Vector3(0, 0, 0);
+    this.bounceVelocity = new THREE.Vector3(0, 0, 0); // Fast, smooth elastic bounce impulse
+    this.currentForwardSpeed = 0;
     this.yaw = 0; // Heading in radians
     this.angularVelocity = 0;
     this.roll = 0;
@@ -160,8 +162,8 @@ export class Ship {
     this.maxHp = this.config.baseHp;
     this.speed = this.config.baseSpeed + this.sailUpgrade * 4.0;
     this.turnSpeed = this.config.turnSpeed;
-    this.cannonsPerSide = this.config.cannons + Math.floor(this.cannonUpgrade * 0.6);
-    this.reloadTime = Math.max(0.9, this.config.reloadTime - this.cannonUpgrade * 0.15);
+    this.cannonsPerSide = this.config.cannons + this.cannonUpgrade * 2;
+    this.reloadTime = Math.max(0.3, this.config.reloadTime - this.cannonUpgrade * 0.08);
     this.hitRadius = this.config.hitRadius;
     this.hitHeight = 5.5;
   }
@@ -371,6 +373,8 @@ export class Ship {
     this.hp = this.maxHp;
     this.position.copy(spawnPos);
     this.velocity.set(0, 0, 0);
+    this.bounceVelocity.set(0, 0, 0);
+    this.currentForwardSpeed = 0;
     this.throttle = 0;
     this.steering = 0;
     this.boostEnergy = 100.0;
@@ -392,8 +396,10 @@ export class Ship {
     const sign = side === 'left' ? 1 : -1;
     const cannonDir = right.clone().multiplyScalar(sign);
 
-    const spacing = 1.4;
-    const startZ = -((count - 1) * spacing) / 2;
+    // Dynamic deck spacing to fit 8 to 24 cannons neatly along the hull
+    const deckLen = Math.min(8.8, 4.0 + count * 0.32);
+    const spacing = deckLen / Math.max(1, count - 1);
+    const startZ = -deckLen / 2;
 
     for (let i = 0; i < count; i++) {
       const zOffset = startZ + i * spacing;
@@ -402,8 +408,8 @@ export class Ship {
         .add(right.clone().multiplyScalar(sign * 2.3));
       pos.y += 1.3;
 
-      // Slight fan spread in volley
-      const angleSpread = ((i / (count - 1 || 1)) - 0.5) * 0.28;
+      // Fan spread in volley
+      const angleSpread = ((i / (count - 1 || 1)) - 0.5) * 0.32;
       const spreadDir = cannonDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleSpread);
 
       positions.push(pos);
@@ -437,7 +443,7 @@ export class Ship {
     return { side, positions, directions };
   }
 
-  // Ship-to-Ship Physical Bounce & Collision (0 Damage)
+  // Ship-to-Ship Physical Bounce & Collision (ZERO Damage, Powerful & Smooth Fast Bounce)
   resolveShipCollision(other) {
     if (this.isDead || other.isDead) return;
 
@@ -451,31 +457,34 @@ export class Ship {
       const overlap = minDist - dist;
       const normal = new THREE.Vector3(dx / dist, 0, dz / dist);
 
-      // Separate ships
-      this.position.addScaledVector(normal, -overlap * 0.55);
-      other.position.addScaledVector(normal, overlap * 0.55);
+      // Separate ships cleanly
+      this.position.addScaledVector(normal, -overlap * 0.6);
+      other.position.addScaledVector(normal, overlap * 0.6);
 
-      // Elastic bounce momentum exchange
+      // Relative velocity along collision normal
       const relativeVel = this.velocity.clone().sub(other.velocity);
       const velAlongNormal = relativeVel.dot(normal);
 
-      if (velAlongNormal > 0) {
-        // Moving towards each other: bounce!
-        const restitution = 1.3; // Bouncy cartoon impulse
-        const impulseMag = velAlongNormal * restitution * 0.7;
+      // Powerful, smooth, fast elastic bounce impulse
+      const minBounceSpeed = 24.0;
+      const bounceMag = Math.max(minBounceSpeed, velAlongNormal * 1.6 + 18.0);
 
-        this.velocity.addScaledVector(normal, -impulseMag);
-        other.velocity.addScaledVector(normal, impulseMag);
+      this.bounceVelocity.copy(normal.clone().multiplyScalar(-bounceMag));
+      other.bounceVelocity.copy(normal.clone().multiplyScalar(bounceMag));
 
-        // Visual & Sound Feedback (Splashes, wood particles, sound, but 0 damage)
-        const contactPos = this.position.clone().addScaledVector(normal, this.hitRadius);
-        this.effects.createShipHit(contactPos, 0);
-        sounds.playHit();
+      // Slightly reduce engine forward drive on collision
+      this.currentForwardSpeed *= 0.2;
+      other.currentForwardSpeed *= 0.2;
 
-        // Hull tilt away from impact
-        this.roll += (Math.random() - 0.5) * 0.3;
-        other.roll += (Math.random() - 0.5) * 0.3;
-      }
+      // Visual & Sound Feedback (Splashes, wood particles, sound, ZERO damage)
+      const contactPos = this.position.clone().addScaledVector(normal, this.hitRadius);
+      this.effects.createShipHit(contactPos, 0);
+      this.effects.createWaterSplash(contactPos);
+      sounds.playHit();
+
+      // Hull dynamic wobble tilt away from impact
+      this.roll += (Math.random() - 0.5) * 0.45;
+      other.roll += (Math.random() - 0.5) * 0.45;
     }
   }
 
@@ -522,20 +531,32 @@ export class Ship {
     // Acceleration & Speed (with Boost multiplier)
     const boostMultiplier = this.isBoosting ? 1.85 : 1.0;
     const targetSpeed = this.throttle * this.speed * boostMultiplier;
-    const currentSpeed = this.velocity.dot(forward);
     const accelRate = this.isBoosting ? 28.0 : 16.0;
-    const newSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, dt * accelRate);
-    this.velocity.copy(forward).multiplyScalar(newSpeed);
+    this.currentForwardSpeed = THREE.MathUtils.lerp(this.currentForwardSpeed, targetSpeed, dt * accelRate);
+
+    // Total velocity = engine drive + decayed bounce impulse
+    this.velocity.copy(forward).multiplyScalar(this.currentForwardSpeed).add(this.bounceVelocity);
 
     // Position integration
     this.position.addScaledVector(this.velocity, dt);
 
-    // Island Collisions
+    // Smoothly decay bounce impulse (exponential decay over ~0.4s)
+    this.bounceVelocity.multiplyScalar(Math.exp(-dt * 5.0));
+
+    // Island & Reef Collisions (Powerful, smooth, fast bounce - ZERO damage)
     const col = map.checkCollision(this.position, this.hitRadius);
     if (col.collided) {
-      this.position.addScaledVector(col.pushDir, col.overlap + 0.2);
-      this.velocity.multiplyScalar(0.2);
+      this.position.addScaledVector(col.pushDir, col.overlap + 0.35);
+
+      // Powerful bounce impulse reflecting off obstacle normal
+      const inwardSpeed = Math.abs(this.velocity.dot(col.pushDir));
+      const bounceMag = Math.max(26.0, inwardSpeed * 1.8 + 20.0);
+
+      this.bounceVelocity.copy(col.pushDir.clone().multiplyScalar(bounceMag));
+      this.currentForwardSpeed = -Math.abs(this.currentForwardSpeed) * 0.35; // knock engine back slightly
+
       this.effects.createWaterSplash(this.position);
+      this.roll += (Math.random() - 0.5) * 0.45;
       sounds.playHit();
     }
 
@@ -562,7 +583,7 @@ export class Ship {
     this.mesh.rotation.set(this.pitch, this.yaw, this.roll);
 
     // Wake & Boost particles
-    if (Math.abs(newSpeed) > 4.0) {
+    if (Math.abs(this.currentForwardSpeed) > 4.0) {
       const sternPos = this.position.clone().add(forward.clone().multiplyScalar(-3.0));
       this.effects.createWakeFoam(sternPos, forward);
 
