@@ -321,6 +321,64 @@ class SoundManager {
       offset += n.d * 0.9;
     });
   }
+
+  playBoost() {
+    if (this.muted) return;
+    this.ensureContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const bufSize = Math.floor(this.ctx.sampleRate * 0.9);
+    const noiseBuf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+    const output = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      output[i] = (Math.random() * 2 - 1) * 0.5;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(150, t);
+    filter.frequency.exponentialRampToValueAtTime(1200, t + 0.35);
+    filter.frequency.exponentialRampToValueAtTime(180, t + 0.9);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.01, t);
+    gain.gain.linearRampToValueAtTime(0.55, t + 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    noise.start(t);
+  }
+
+  playUpgrade() {
+    if (this.muted) return;
+    this.ensureContext();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    // Ascending brass fanfares C4, G4, C5, E5
+    const notes = [261.63, 392.00, 523.25, 659.25];
+    notes.forEach((freq, idx) => {
+      const start = t + idx * 0.12;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, start);
+
+      gain.gain.setValueAtTime(0.4, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(start);
+      osc.stop(start + 0.5);
+    });
+  }
 }
 
 export const sounds = new SoundManager();

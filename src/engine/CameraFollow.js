@@ -56,7 +56,7 @@ export class CameraFollow {
       this.prevMouseY = e.clientY;
 
       this.azimuth -= dx * 0.006;
-      this.elevation = Math.max(-0.2, Math.min(1.1, this.elevation + dy * 0.005));
+      this.elevation = Math.max(-0.15, Math.min(1.15, this.elevation - dy * 0.005));
     });
 
     // Prevent context menu on right click
@@ -73,6 +73,13 @@ export class CameraFollow {
 
     const shipPos = this.target.mesh.position;
     const shipYaw = this.target.yaw;
+
+    // Dynamic FOV for speed boost
+    const targetFOV = (this.target.isBoosting ? 70 : 58);
+    if (Math.abs(this.camera.fov - targetFOV) > 0.1) {
+      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFOV, dt * 5.0);
+      this.camera.updateProjectionMatrix();
+    }
 
     // Desired camera angle = ship heading + player orbit azimuth
     const totalAngle = shipYaw + this.azimuth + Math.PI;

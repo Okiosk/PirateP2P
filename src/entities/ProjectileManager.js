@@ -21,15 +21,15 @@ export class ProjectileManager {
     const shotsData = [];
 
     cannonWorldPositions.forEach((pos, idx) => {
-      // Stagger slightly for classic rolling pirate broadside
+      // Stagger slightly for fast-paced rolling pirate broadside
       setTimeout(() => {
         const dir = directions[idx];
-        const speed = 48.0;
+        const speed = 58.0;
 
         // Ballistic velocity with upward loft
         const vel = dir.clone().multiplyScalar(speed)
-          .add(baseVel.clone().multiplyScalar(0.4));
-        vel.y = 7.5 + Math.random() * 2.0;
+          .add(baseVel.clone().multiplyScalar(0.45));
+        vel.y = 8.5 + Math.random() * 2.0;
 
         // Visual cannonball mesh
         const mesh = new THREE.Mesh(this.ballGeo, this.ballMat);
@@ -52,7 +52,7 @@ export class ProjectileManager {
         };
 
         this.cannonballs.push(ball);
-      }, idx * 110); // 110ms delay between cannon shots
+      }, idx * 75); // 75ms rapid rolling volley
     });
   }
 
@@ -80,7 +80,7 @@ export class ProjectileManager {
           life: 3.5,
           trailTimer: 0
         });
-      }, idx * 110);
+      }, idx * 75);
     });
   }
 

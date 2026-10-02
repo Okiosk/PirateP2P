@@ -18,7 +18,7 @@
   <div id="lobby-screen">
     <div class="lobby-panel">
       <h1 class="lobby-title">⚔️ PIRATE P2P ⚔️</h1>
-      <p class="lobby-subtitle">Bataille Navale Cartoon en Peer-to-Peer &bull; Kenney Pirate Kit</p>
+      <p class="lobby-subtitle">Bataille Navale Cartoon 3D &bull; Évolution & Amélioration de Navire</p>
 
       <!-- Nom du joueur -->
       <div class="input-group">
@@ -26,49 +26,72 @@
         <input type="text" id="player-name" class="pirate-input" value="Capitaine Jack" maxlength="18" />
       </div>
 
-      <!-- Choix du navire -->
-      <label class="section-label">Choisissez votre Navire</label>
-      <div class="ship-grid" id="ship-grid">
-        <div class="ship-card selected" data-ship="galleon">
-          <div class="ship-icon">🏴‍☠️</div>
-          <div class="ship-title">Galion Pirate</div>
-          <div class="ship-stat">100 PV &bull; 3 Canons / côté</div>
+      <!-- Votre Navire et Améliorations -->
+      <div class="shipyard-preview-box">
+        <div class="shipyard-header">
+          <div>
+            <span class="section-label" style="margin: 0;">🏴‍☠️ Votre Navire Actuel</span>
+            <div id="lobby-ship-name" style="font-size: 1.3rem; font-weight: 900; color: var(--pirate-gold);">Sloop Léger (Niv. 1)</div>
+            <div id="lobby-ship-stats" style="font-size: 0.85rem; color: #cbd5e1; margin-top: 2px;">
+              300 PV &bull; Vitesse: 38 m/s &bull; 4 Canons par bordée
+            </div>
+          </div>
+          <div class="gold-badge">
+            💰 <span id="lobby-gold-count">0</span> Pièces d'Or
+          </div>
         </div>
-        <div class="ship-card" data-ship="brigantine">
-          <div class="ship-icon">👑</div>
-          <div class="ship-title">Brigantin Royal</div>
-          <div class="ship-stat">100 PV &bull; Maniable & Rapide</div>
-        </div>
-        <div class="ship-card" data-ship="sloop">
-          <div class="ship-icon">⚡</div>
-          <div class="ship-title">Sloop Léger</div>
-          <div class="ship-stat">80 PV &bull; Grande Vitesse</div>
-        </div>
-        <div class="ship-card" data-ship="ghost">
-          <div class="ship-icon">👻</div>
-          <div class="ship-title">Hollandais Volant</div>
-          <div class="ship-stat">120 PV &bull; Coque Renforcée</div>
+
+        <div class="upgrade-row">
+          <div class="upgrade-card">
+            <div class="upgrade-icon">🛡️</div>
+            <div class="upgrade-title">Coque & Rang</div>
+            <div class="upgrade-desc" id="upgrade-hull-desc">Sloop ➔ Brigantin</div>
+            <button id="btn-upgrade-hull" class="btn-upgrade">
+              <span>Améliorer</span>
+              <span class="cost" id="cost-hull">150 Or</span>
+            </button>
+          </div>
+
+          <div class="upgrade-card">
+            <div class="upgrade-icon">⛵</div>
+            <div class="upgrade-title">Voilure & Vitesse</div>
+            <div class="upgrade-desc" id="upgrade-sails-desc">+4 m/s & Boost</div>
+            <button id="btn-upgrade-sails" class="btn-upgrade">
+              <span>Améliorer</span>
+              <span class="cost" id="cost-sails">75 Or</span>
+            </button>
+          </div>
+
+          <div class="upgrade-card">
+            <div class="upgrade-icon">💣</div>
+            <div class="upgrade-title">Artillerie & Canons</div>
+            <div class="upgrade-desc" id="upgrade-cannons-desc">+1 Canon / bordée</div>
+            <button id="btn-upgrade-cannons" class="btn-upgrade">
+              <span>Améliorer</span>
+              <span class="cost" id="cost-cannons">90 Or</span>
+            </button>
+          </div>
         </div>
       </div>
 
       <!-- Mode de jeu -->
-      <label class="section-label">Mode de Jeu</label>
+      <label class="section-label" style="margin-top: 18px;">Mode de Jeu</label>
       <div class="modes-container">
         <button id="btn-host" class="pirate-btn btn-primary">
           <span>👑 Héberger une Partie P2P</span>
-          <span class="btn-sub">Génère un code d'invitation WebRTC</span>
+          <span class="btn-sub">Génère un salon multijoueur WebRTC</span>
         </button>
 
         <div style="flex: 1; display: flex; gap: 8px;">
-          <input type="text" id="join-code" class="pirate-input" placeholder="CODE SALON (ex: PIRATE-XXXX)" style="flex: 2; text-transform: uppercase;" />
+          <input type="text" id="join-code" class="pirate-input" placeholder="CODE DU SALON (ex: PIRATE-XXXX)" style="flex: 2; text-transform: uppercase;" />
           <button id="btn-join" class="pirate-btn btn-secondary" style="flex: 1;">
             <span>Rejoindre</span>
           </button>
         </div>
 
         <button id="btn-solo" class="pirate-btn btn-solo">
-          <span>🤖 Solo vs IA</span>
-          <span class="btn-sub">Entraînement avec flottes pirates</span>
+          <span>🤖 Solo vs Flottes IA</span>
+          <span class="btn-sub">Bataille immédiate contre pirates</span>
         </button>
       </div>
 
@@ -77,17 +100,18 @@
         <p>⚓ Votre Salon P2P est ouvert ! Transmettez ce code à votre adversaire :</p>
         <div id="host-code-display" class="host-code-display">PIRATE-XXXX</div>
         <button id="btn-copy-link" class="copy-btn">📋 Copier le lien d'invitation directe</button>
-        <p style="margin-top: 10px; font-size: 0.85rem; color: #94a3b8;">
+        <p style="margin-top: 8px; font-size: 0.85rem; color: #94a3b8;">
           En attente de connexion WebRTC directe...
         </p>
       </div>
 
       <!-- Contrôles Summary -->
-      <div style="margin-top: 24px; font-size: 0.82rem; color: #94a3b8; display: flex; justify-content: space-around; border-top: 1px solid #334155; padding-top: 14px;">
-        <div>⛵ <strong>Z / S</strong> ou <strong>↑ / ↓</strong> : Hisser / Réduire les voiles</div>
-        <div>🧭 <strong>Q / D</strong> ou <strong>← / →</strong> : Gouvernail</div>
-        <div>💥 <strong>A / E</strong> ou <strong>Clic G / D</strong> : Canons Bâbord / Tribord</div>
-        <div>💣 <strong>ESPACE</strong> : Bordée Complète</div>
+      <div class="controls-guide-bar">
+        <div>⛵ <strong>Z / W</strong> : Avancer &bull; <strong>S</strong> : Reculer</div>
+        <div>🧭 <strong>Q / A</strong> : Bâbord (Gauche) &bull; <strong>D</strong> : Tribord (Droite)</div>
+        <div>💨 <strong>SHIFT</strong> : Boost en avant !</div>
+        <div>💥 <strong>Clic G / A / F</strong> : Bâbord &bull; <strong>Clic D / E</strong> : Tribord</div>
+        <div>💣 <strong>ESPACE</strong> : Double Bordée</div>
       </div>
     </div>
   </div>
@@ -100,13 +124,23 @@
         <span class="player-title" id="hud-player-name">Capitaine Jack</span>
         <span style="font-size: 0.75rem; color: #94a3b8;" id="throttle-label">Au Mouillage</span>
       </div>
+
+      <!-- HP Bar -->
       <div class="hp-container">
         <div class="hp-fill" id="player-hp-bar"></div>
-        <div class="hp-label" id="player-hp-text">100 / 100 PV</div>
+        <div class="hp-label" id="player-hp-text">300 / 300 PV</div>
       </div>
-      <div class="stats-row">
+
+      <!-- Boost Energy Bar -->
+      <div class="boost-container" title="Appuyez sur SHIFT pour activer le Boost !">
+        <div class="boost-fill" id="player-boost-bar"></div>
+        <div class="boost-label">💨 BOOST [SHIFT]</div>
+      </div>
+
+      <div class="stats-row" style="margin-top: 6px;">
         <span>💰 <strong id="player-gold-text">0 Or</strong></span>
         <span>☠️ <strong id="player-score-text">0 pts</strong></span>
+        <button id="btn-open-shop" class="btn-shop-open" title="Ouvrir le chantier d'amélioration">🔨 Améliorer</button>
       </div>
     </div>
 
@@ -128,25 +162,25 @@
 
     <!-- Bottom-Center Cannons HUD -->
     <div class="cannons-hud hud-interactive">
-      <div class="cannon-slot" id="btn-fire-left" style="cursor: pointer;" title="Cliquer ou appuyer sur [F] / [Clic Gauche] pour tirer à Bâbord">
+      <div class="cannon-slot" id="btn-fire-left" style="cursor: pointer;" title="Tirer la bordée de Bâbord (gauche)">
         <div class="cannon-name">Bâbord (Gauche)</div>
         <div class="cooldown-gauge">
           <div class="cooldown-fill" id="cannon-left-bar"></div>
         </div>
-        <div class="key-hint">[F] ou Clic Gauche</div>
+        <div class="key-hint">[F] / [A] ou Clic G</div>
       </div>
 
-      <div class="cannon-slot" id="btn-fire-both" style="min-width: 120px; cursor: pointer;" title="Cliquer ou appuyer sur [ESPACE] pour une double bordée">
-        <div class="cannon-name" style="color: var(--pirate-gold);">💥 Double Bordée</div>
+      <div class="cannon-slot" id="btn-fire-both" style="min-width: 125px; cursor: pointer;" title="Tirer les deux bordées simultanément">
+        <div class="cannon-name" style="color: var(--pirate-gold);">💥 Salve Totale</div>
         <div class="key-hint">[ESPACE]</div>
       </div>
 
-      <div class="cannon-slot" id="btn-fire-right" style="cursor: pointer;" title="Cliquer ou appuyer sur [E] / [Clic Droit] pour tirer à Tribord">
+      <div class="cannon-slot" id="btn-fire-right" style="cursor: pointer;" title="Tirer la bordée de Tribord (droite)">
         <div class="cannon-name">Tribord (Droite)</div>
         <div class="cooldown-gauge">
           <div class="cooldown-fill" id="cannon-right-bar"></div>
         </div>
-        <div class="key-hint">[E] ou Clic Droit</div>
+        <div class="key-hint">[E] ou Clic D</div>
       </div>
     </div>
 
@@ -162,8 +196,56 @@
     <button id="mute-btn" class="hud-interactive" title="Couper / Activer le son">🔊</button>
   </div>
 
+  <!-- MID-GAME SHIPYARD WORKSHOP MODAL -->
+  <div id="shipyard-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 640px;">
+      <h2 style="color: var(--pirate-gold);">🔨 Chantier Naval Pirate</h2>
+      <p style="color: #94a3b8; font-size: 0.95rem; margin-bottom: 16px;">Améliorez les capacités de votre navire grâce à vos pièces d'or !</p>
+      
+      <div style="font-size: 1.15rem; font-weight: bold; margin-bottom: 16px; color: #ffd700;">
+        💰 Votre Or : <span id="modal-gold-count">0</span> pièces
+      </div>
+
+      <div class="upgrade-row" style="margin-bottom: 24px;">
+        <div class="upgrade-card">
+          <div class="upgrade-icon">🛡️</div>
+          <div class="upgrade-title">Coque & Évolution</div>
+          <div class="upgrade-desc" id="modal-hull-desc">Sloop ➔ Brigantin</div>
+          <button id="btn-modal-upgrade-hull" class="btn-upgrade">
+            <span>Améliorer</span>
+            <span class="cost" id="modal-cost-hull">150 Or</span>
+          </button>
+        </div>
+
+        <div class="upgrade-card">
+          <div class="upgrade-icon">⛵</div>
+          <div class="upgrade-title">Voilure & Vitesse</div>
+          <div class="upgrade-desc" id="modal-sails-desc">+4 m/s & Boost</div>
+          <button id="btn-modal-upgrade-sails" class="btn-upgrade">
+            <span>Améliorer</span>
+            <span class="cost" id="modal-cost-sails">75 Or</span>
+          </button>
+        </div>
+
+        <div class="upgrade-card">
+          <div class="upgrade-icon">💣</div>
+          <div class="upgrade-title">Artillerie</div>
+          <div class="upgrade-desc" id="modal-cannons-desc">+1 Canon / bordée</div>
+          <button id="btn-modal-upgrade-cannons" class="btn-upgrade">
+            <span>Améliorer</span>
+            <span class="cost" id="modal-cost-cannons">90 Or</span>
+          </button>
+        </div>
+      </div>
+
+      <button id="btn-close-shop" class="pirate-btn btn-primary" style="margin: 0 auto; min-width: 180px;">
+        <span>Reprendre la Mer ⚓</span>
+      </button>
+    </div>
+  </div>
+
   <!-- GAME OVER MODAL -->
-  <div id="game-over-modal">
+  <div id="game-over-modal" class="modal-backdrop">
     <div class="modal-card">
       <h2 id="game-over-title">🏆 VICTOIRE ÉPIQUE !</h2>
       <div id="game-over-stats" class="modal-stats"></div>

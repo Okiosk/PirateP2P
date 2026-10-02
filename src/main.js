@@ -5,11 +5,13 @@ import { Ocean } from './engine/Ocean.js';
 import { EffectsManager } from './engine/Effects.js';
 import { MapBuilder } from './engine/MapBuilder.js';
 import { CameraFollow } from './engine/CameraFollow.js';
-import { ProjectileManager } from './entities/ProjectileManager.js';
-import { Ship, SHIP_TYPES } from './entities/Ship.js';
+import { Ship, SHIP_TIERS } from './entities/Ship.js';
 import { AIShip } from './entities/AIShip.js';
+import { ProjectileManager } from './entities/ProjectileManager.js';
 import { NetworkManager } from './network/NetworkManager.js';
 import { UIManager } from './ui/UIManager.js';
+
+window.__SHIP_TIERS = SHIP_TIERS;
 
 class Game {
   constructor() {
@@ -42,7 +44,8 @@ class Game {
       forward: false,
       backward: false,
       left: false,
-      right: false
+      right: false,
+      boost: false
     };
 
     // Network sync throttle
@@ -108,10 +111,24 @@ class Game {
     // 5. Build Map & Archipelago
     this.map.buildWorld();
 
+    // Create local player ship for lobby preview & persistence
+    this.playerShip = new Ship(
+      'local_player',
+      this.playerName,
+      0,
+      this.scene,
+      this.ocean,
+      this.effects,
+      true
+    );
+    this.playerShip.position.set(-60, 0, -60);
+    this.cameraFollow.setTarget(this.playerShip);
+
     // 6. Setup Inputs, Network & UI Listeners
     this.setupInputs();
     this.setupNetworkCallbacks();
     this.setupUI();
+    this.ui.updateShipyardUI(this.playerShip);
 
     // Check URL parameters for direct room joining (?room=PIRATE-XXXX)
     const urlParams = new URLSearchParams(window.location.search);
@@ -129,23 +146,53 @@ class Game {
   }
 
   setupUI() {
-    // Ship selection cards
-    const shipCards = document.querySelectorAll('.ship-card');
-    shipCards.forEach(card => {
-      card.addEventListener('click', () => {
-        shipCards.forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        this.selectedShipType = card.dataset.ship;
-      });
-    });
-
     // Player name input
     const nameInput = document.getElementById('player-name');
     if (nameInput) {
       nameInput.addEventListener('input', (e) => {
         this.playerName = e.target.value.trim() || 'Capitaine';
+        if (this.playerShip) this.playerShip.name = this.playerName;
       });
     }
+
+    // Upgrades: Hull / Tier
+    const handleUpgradeHull = () => {
+      if (this.playerShip && this.playerShip.upgradeTier()) {
+        this.ui.updatePlayerHUD(this.playerShip);
+      }
+    };
+    document.getElementById('btn-upgrade-hull')?.addEventListener('click', handleUpgradeHull);
+    document.getElementById('btn-modal-upgrade-hull')?.addEventListener('click', handleUpgradeHull);
+
+    // Upgrades: Sails / Speed
+    const handleUpgradeSails = () => {
+      if (this.playerShip && this.playerShip.upgradeSails()) {
+        this.ui.updatePlayerHUD(this.playerShip);
+      }
+    };
+    document.getElementById('btn-upgrade-sails')?.addEventListener('click', handleUpgradeSails);
+    document.getElementById('btn-modal-upgrade-sails')?.addEventListener('click', handleUpgradeSails);
+
+    // Upgrades: Cannons / Artillery
+    const handleUpgradeCannons = () => {
+      if (this.playerShip && this.playerShip.upgradeCannons()) {
+        this.ui.updatePlayerHUD(this.playerShip);
+      }
+    };
+    document.getElementById('btn-upgrade-cannons')?.addEventListener('click', handleUpgradeCannons);
+    document.getElementById('btn-modal-upgrade-cannons')?.addEventListener('click', handleUpgradeCannons);
+
+    // Mid-game Shop open/close
+    const shopModal = document.getElementById('shipyard-modal');
+    document.getElementById('btn-open-shop')?.addEventListener('click', () => {
+      if (shopModal) {
+        shopModal.style.display = 'flex';
+        this.ui.updateShipyardUI(this.playerShip);
+      }
+    });
+    document.getElementById('btn-close-shop')?.addEventListener('click', () => {
+      if (shopModal) shopModal.style.display = 'none';
+    });
 
     // Host Button
     const btnHost = document.getElementById('btn-host');
@@ -274,6 +321,15 @@ class Game {
         if (canRight) this.fireBroadside('right');
       });
     }
+
+    // Boost bar on-screen click/touch
+    const boostBar = document.querySelector('.boost-container');
+    if (boostBar) {
+      boostBar.addEventListener('mousedown', () => { this.keys.boost = true; });
+      window.addEventListener('mouseup', () => { this.keys.boost = false; });
+      boostBar.addEventListener('touchstart', () => { this.keys.boost = true; }, { passive: true });
+      window.addEventListener('touchend', () => { this.keys.boost = false; }, { passive: true });
+    }
   }
 
   setupInputs() {
@@ -285,6 +341,21 @@ class Game {
       if (e.code === 'KeyS' || e.code === 'ArrowDown') this.keys.backward = true;
       if (e.code === 'KeyA' || e.code === 'KeyQ' || e.code === 'ArrowLeft') this.keys.left = true;
       if (e.code === 'KeyD' || e.code === 'ArrowRight') this.keys.right = true;
+
+      // Boost: Shift
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        this.keys.boost = true;
+      }
+
+      // Shop: Key B
+      if (e.code === 'KeyB') {
+        const modal = document.getElementById('shipyard-modal');
+        if (modal) {
+          const isShown = modal.style.display === 'flex';
+          modal.style.display = isShown ? 'none' : 'flex';
+          if (!isShown) this.ui.updateShipyardUI(this.playerShip);
+        }
+      }
 
       if (!this.gameActive || !this.playerShip) return;
 
@@ -318,17 +389,15 @@ class Game {
       if (e.code === 'KeyS' || e.code === 'ArrowDown') this.keys.backward = false;
       if (e.code === 'KeyA' || e.code === 'KeyQ' || e.code === 'ArrowLeft') this.keys.left = false;
       if (e.code === 'KeyD' || e.code === 'ArrowRight') this.keys.right = false;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.keys.boost = false;
     });
 
     // Mouse click shooting (Left click = Port broadside, Right click = Starboard broadside)
     this.renderer.domElement.addEventListener('mousedown', (e) => {
       if (!this.gameActive || !this.playerShip) return;
-      // Only fire if not dragging camera or quick click
       if (e.button === 0 && !e.shiftKey && !e.ctrlKey) {
-        // Left click
         this.fireBroadside('left');
       } else if (e.button === 2) {
-        // Right click
         this.fireBroadside('right');
       }
     });
@@ -360,7 +429,7 @@ class Game {
 
     this.network.on('remote_state', (state) => {
       if (!this.peerShip && state) {
-        this.createPeerShip(state.id, state.name, state.typeKey);
+        this.createPeerShip(state.id, state.name, state.tierIndex);
       }
       if (this.peerShip) {
         this.peerShip.applyNetworkState(state, 1 / 30);
@@ -390,7 +459,7 @@ class Game {
         ais.forEach((aiData) => {
           let aiShip = this.aiShips.find(a => a.id === aiData.id);
           if (!aiShip) {
-            aiShip = new AIShip(aiData.id, aiData.name, aiData.typeKey, this.scene, this.ocean, this.effects);
+            aiShip = new AIShip(aiData.id, aiData.name, aiData.tierIndex, this.scene, this.ocean, this.effects);
             this.aiShips.push(aiShip);
           }
           aiShip.applyNetworkState(aiData, 1 / 30);
@@ -432,7 +501,7 @@ class Game {
     this.playerShip = new Ship(
       myId,
       this.playerName,
-      this.selectedShipType,
+      0, // loads saved tier from localStorage
       this.scene,
       this.ocean,
       this.effects,
@@ -462,12 +531,12 @@ class Game {
     this.ui.showAnnouncement('Capitaine à bord ! Tous aux postes de combat !', 3500);
   }
 
-  createPeerShip(id, name, typeKey) {
+  createPeerShip(id, name, tierIndex) {
     if (this.peerShip) return;
     this.peerShip = new Ship(
       id,
       name,
-      typeKey || 'brigantine',
+      tierIndex || 0,
       this.scene,
       this.ocean,
       this.effects,
@@ -481,7 +550,7 @@ class Game {
       {
         id: 'ai_redbeard',
         name: 'Barbe-Rousse',
-        type: 'galleon',
+        tierIndex: 2, // Galion Pirate (700 PV)
         pos: new THREE.Vector3(120, 0, -120),
         waypoints: [
           new THREE.Vector3(120, 0, -120),
@@ -493,7 +562,7 @@ class Game {
       {
         id: 'ai_specter',
         name: 'Spectre des Mers',
-        type: 'ghost',
+        tierIndex: 4, // Hollandais Maudit (1300 PV)
         pos: new THREE.Vector3(-140, 0, -60),
         waypoints: [
           new THREE.Vector3(-140, 0, -60),
@@ -504,7 +573,7 @@ class Game {
       {
         id: 'ai_swifthawk',
         name: 'Faucon Noir',
-        type: 'sloop',
+        tierIndex: 1, // Brigantin (480 PV)
         pos: new THREE.Vector3(0, 0, 160),
         waypoints: [
           new THREE.Vector3(0, 0, 160),
@@ -518,7 +587,7 @@ class Game {
       const ai = new AIShip(
         cfg.id,
         cfg.name,
-        cfg.type,
+        cfg.tierIndex,
         this.scene,
         this.ocean,
         this.effects,
@@ -622,7 +691,8 @@ class Game {
         this.keys.forward,
         this.keys.backward,
         this.keys.left,
-        this.keys.right
+        this.keys.right,
+        this.keys.boost
       );
       this.playerShip.update(dt, this.map);
 
@@ -649,6 +719,22 @@ class Game {
         this.aiShips.forEach(ai => {
           ai.updateAI(dt, potentialTargets, this.projectiles, this.map);
         });
+      }
+
+      // 4b. Ship-to-Ship physical elastic bounce collisions & ramming
+      if (this.peerShip) {
+        this.playerShip.resolveShipCollision(this.peerShip);
+      }
+      this.aiShips.forEach(ai => {
+        this.playerShip.resolveShipCollision(ai);
+        if (this.peerShip) {
+          this.peerShip.resolveShipCollision(ai);
+        }
+      });
+      for (let i = 0; i < this.aiShips.length; i++) {
+        for (let j = i + 1; j < this.aiShips.length; j++) {
+          this.aiShips[i].resolveShipCollision(this.aiShips[j]);
+        }
       }
 
       // 5. Update Cannonballs & Ballistics
@@ -687,6 +773,9 @@ class Game {
           }
         }
       }
+    } else if (this.playerShip) {
+      this.playerShip.setInputs(false, false, false, false, false);
+      this.playerShip.update(dt, this.map);
     }
 
     // 8. Update Camera & Effects

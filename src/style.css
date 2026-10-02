@@ -107,51 +107,120 @@ body, html {
   box-shadow: 0 0 12px rgba(243, 156, 18, 0.3);
 }
 
-/* SHIP SELECTOR CARDS */
-.ship-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 26px;
+/* SHIPYARD / UPGRADES BOX */
+.shipyard-preview-box {
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid var(--pirate-gold);
+  border-radius: 14px;
+  padding: 18px 22px;
+  margin-bottom: 22px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
-.ship-card {
-  background: #0f172a;
+.shipyard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.gold-badge {
+  background: linear-gradient(135deg, #f59e0b, #b45309);
+  color: #0f172a;
+  font-weight: 900;
+  font-size: 1.1rem;
+  padding: 8px 16px;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.upgrade-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.upgrade-card {
+  background: #1e293b;
   border: 2px solid #334155;
   border-radius: 12px;
   padding: 14px 10px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  position: relative;
   text-align: center;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
-.ship-card:hover {
-  transform: translateY(-4px);
-  border-color: #64748b;
-}
-
-.ship-card.selected {
+.upgrade-card:hover {
   border-color: var(--pirate-gold);
-  background: rgba(243, 156, 18, 0.08);
-  box-shadow: 0 0 18px rgba(243, 156, 18, 0.35);
+  transform: translateY(-2px);
 }
 
-.ship-icon {
-  font-size: 2.2rem;
-  margin-bottom: 6px;
-}
-
-.ship-title {
-  font-size: 0.95rem;
-  font-weight: bold;
-  color: #f1f5f9;
+.upgrade-icon {
+  font-size: 2.0rem;
   margin-bottom: 4px;
 }
 
-.ship-stat {
-  font-size: 0.75rem;
+.upgrade-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+
+.upgrade-desc {
+  font-size: 0.78rem;
   color: #94a3b8;
+  margin: 4px 0 10px 0;
+}
+
+.btn-upgrade {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.btn-upgrade:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: scale(1.02);
+}
+
+.btn-upgrade:disabled {
+  background: #475569;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.btn-upgrade .cost {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: #fef08a;
+}
+
+.controls-guide-bar {
+  margin-top: 20px;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  border-top: 1px solid #334155;
+  padding-top: 14px;
 }
 
 /* LOBBY MODES / BUTTONS */
@@ -325,11 +394,75 @@ body, html {
   text-shadow: 1px 1px 2px #000;
 }
 
+.boost-container {
+  width: 100%;
+  height: 12px;
+  background: #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  position: relative;
+  border: 1px solid #0284c7;
+}
+
+.boost-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #06b6d4, #3b82f6);
+  transition: width 0.08s linear;
+}
+
+.boost-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 0.65rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  text-shadow: 1px 1px 2px #000;
+}
+
 .stats-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 0.85rem;
   color: #cbd5e1;
+}
+
+.btn-shop-open {
+  background: #334155;
+  color: var(--pirate-gold);
+  border: 1px solid var(--pirate-gold);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-shop-open:hover {
+  background: rgba(243, 156, 18, 0.2);
+}
+
+.modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 30;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  background: rgba(10, 15, 30, 0.88);
+  backdrop-filter: blur(8px);
 }
 
 /* TOP-CENTER BANNER */

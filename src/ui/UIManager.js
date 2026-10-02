@@ -33,10 +33,18 @@ export class UIManager {
     if (goldText) goldText.textContent = `${ship.gold} Or`;
     if (scoreText) scoreText.textContent = `${ship.score} pts`;
 
+    // Boost Energy Bar
+    const boostBar = document.getElementById('player-boost-bar');
+    if (boostBar) {
+      const boostPct = Math.max(0, Math.min(100, (ship.boostEnergy / ship.maxBoostEnergy) * 100));
+      boostBar.style.width = `${boostPct}%`;
+      boostBar.style.backgroundColor = ship.isBoosting ? '#38ef7d' : '#06b6d4';
+    }
+
     // Cannon Cooldown Bars
     const leftBar = document.getElementById('cannon-left-bar');
     const rightBar = document.getElementById('cannon-right-bar');
-    const reloadTime = ship.config.reloadTime;
+    const reloadTime = ship.reloadTime;
 
     if (leftBar) {
       const leftReadyPct = Math.max(0, Math.min(100, (1 - ship.leftCooldown / reloadTime) * 100));
@@ -53,11 +61,76 @@ export class UIManager {
     // Throttle label
     const throttleLabel = document.getElementById('throttle-label');
     if (throttleLabel) {
-      if (ship.throttle > 0.5) throttleLabel.textContent = 'Pleines Voiles (100%)';
+      if (ship.isBoosting) throttleLabel.textContent = '⚡ BOOST DE VENT !';
+      else if (ship.throttle > 0.5) throttleLabel.textContent = 'Pleines Voiles (100%)';
       else if (ship.throttle > 0.1) throttleLabel.textContent = 'Demi-Voiles (50%)';
       else if (ship.throttle < -0.1) throttleLabel.textContent = 'Marche Arrière';
       else throttleLabel.textContent = 'Au Mouillage (Arrêt)';
     }
+
+    // Update shipyard displays
+    this.updateShipyardUI(ship);
+  }
+
+  updateShipyardUI(ship) {
+    if (!ship) return;
+    const gold = ship.gold;
+    const tier = ship.config;
+
+    // Lobby text
+    const lobbyShipName = document.getElementById('lobby-ship-name');
+    const lobbyShipStats = document.getElementById('lobby-ship-stats');
+    const lobbyGold = document.getElementById('lobby-gold-count');
+    const modalGold = document.getElementById('modal-gold-count');
+
+    if (lobbyShipName) lobbyShipName.textContent = `${tier.name} (Rang ${ship.tierIndex + 1}/5)`;
+    if (lobbyShipStats) lobbyShipStats.textContent = `${ship.maxHp} PV • Vitesse: ${Math.round(ship.speed)} m/s • ${ship.cannonsPerSide} Canons/bordée`;
+    if (lobbyGold) lobbyGold.textContent = gold;
+    if (modalGold) modalGold.textContent = gold;
+
+    // Hull upgrade info
+    const isMaxHull = ship.tierIndex >= 4;
+    const nextHullTier = !isMaxHull ? window.__SHIP_TIERS[ship.tierIndex + 1] : null;
+    const hullCost = nextHullTier ? nextHullTier.cost : 0;
+
+    const setHullText = (descId, costId, btnId) => {
+      const descEl = document.getElementById(descId);
+      const costEl = document.getElementById(costId);
+      const btnEl = document.getElementById(btnId);
+      if (descEl) descEl.textContent = isMaxHull ? 'Rang Maximum Atteint !' : `${tier.name} ➔ ${nextHullTier.name}`;
+      if (costEl) costEl.textContent = isMaxHull ? 'MAX' : `${hullCost} Or`;
+      if (btnEl) btnEl.disabled = isMaxHull || gold < hullCost;
+    };
+    setHullText('upgrade-hull-desc', 'cost-hull', 'btn-upgrade-hull');
+    setHullText('modal-hull-desc', 'modal-cost-hull', 'btn-modal-upgrade-hull');
+
+    // Sails upgrade info
+    const isMaxSails = ship.sailUpgrade >= 4;
+    const sailsCost = (ship.sailUpgrade + 1) * 75;
+    const setSailsText = (descId, costId, btnId) => {
+      const descEl = document.getElementById(descId);
+      const costEl = document.getElementById(costId);
+      const btnEl = document.getElementById(btnId);
+      if (descEl) descEl.textContent = isMaxSails ? 'Voilure Maximale' : `Niveau ${ship.sailUpgrade + 1}/5 (+4 m/s)`;
+      if (costEl) costEl.textContent = isMaxSails ? 'MAX' : `${sailsCost} Or`;
+      if (btnEl) btnEl.disabled = isMaxSails || gold < sailsCost;
+    };
+    setSailsText('upgrade-sails-desc', 'cost-sails', 'btn-upgrade-sails');
+    setSailsText('modal-sails-desc', 'modal-cost-sails', 'btn-modal-upgrade-sails');
+
+    // Cannons upgrade info
+    const isMaxCannons = ship.cannonUpgrade >= 4;
+    const cannonsCost = (ship.cannonUpgrade + 1) * 90;
+    const setCannonsText = (descId, costId, btnId) => {
+      const descEl = document.getElementById(descId);
+      const costEl = document.getElementById(costId);
+      const btnEl = document.getElementById(btnId);
+      if (descEl) descEl.textContent = isMaxCannons ? 'Artillerie Maximale' : `Niveau ${ship.cannonUpgrade + 1}/5 (+1 canon)`;
+      if (costEl) costEl.textContent = isMaxCannons ? 'MAX' : `${cannonsCost} Or`;
+      if (btnEl) btnEl.disabled = isMaxCannons || gold < cannonsCost;
+    };
+    setCannonsText('upgrade-cannons-desc', 'cost-cannons', 'btn-upgrade-cannons');
+    setCannonsText('modal-cannons-desc', 'modal-cost-cannons', 'btn-modal-upgrade-cannons');
   }
 
   showAnnouncement(text, duration = 3000) {

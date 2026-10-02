@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { Ship } from './Ship.js';
 
 export class AIShip extends Ship {
-  constructor(id, name, typeKey, scene, ocean, effects, waypoints = []) {
-    super(id, name, typeKey, scene, ocean, effects, false);
+  constructor(id, name, tierIndex = 1, scene, ocean, effects, waypoints = []) {
+    super(id, name, tierIndex, scene, ocean, effects, false);
     this.waypoints = waypoints;
     this.currentWpIndex = 0;
     this.state = 'PATROL'; // 'PATROL' | 'COMBAT'
@@ -79,19 +79,16 @@ export class AIShip extends Ship {
     const rightDot = right.dot(toTarget);
 
     // If too far, approach
-    if (dist > 55.0) {
+    if (dist > 50.0) {
       this.steerTowards(targetPos, 0.95);
     } else {
-      // Circle target to present broadside (flank)
-      // Decide whether Port (left) or Starboard (right) is closer
-      const useRightBroadside = rightDot > 0;
-      const flankDir = useRightBroadside ? right : right.clone().negate();
+      // Flank target to present broadside
+      const useRightBroadside = rightDot >= 0;
+      const broadsideNormal = useRightBroadside ? right : right.clone().negate();
+      const broadsideAlignment = broadsideNormal.dot(toTarget);
 
-      // Check alignment of broadside with target
-      const broadsideAlignment = flankDir.dot(toTarget);
-
-      if (broadsideAlignment > 0.82) {
-        // Aligned for broadside! Maintain speed and prepare fire
+      if (broadsideAlignment > 0.75) {
+        // Aligned for broadside! Maintain speed and fire
         this.setInputs(true, false, false, false);
 
         this.fireTimer -= dt;
@@ -99,20 +96,24 @@ export class AIShip extends Ship {
           const side = useRightBroadside ? 'right' : 'left';
           if (this.canFire(side)) {
             this.fire(side, projectileManager);
-            this.fireTimer = 3.0 + Math.random() * 2.0;
+            this.fireTimer = 2.5 + Math.random() * 1.5;
           }
         }
       } else {
-        // Turn towards broadside angle
-        const steerLeft = rightDot > 0;
-        this.setInputs(true, false, !steerLeft, steerLeft);
+        // Steer towards target or flank
+        if (forwardDot > 0.2) {
+          // Pointing directly at target: turn away to align flank
+          const turnLeft = useRightBroadside;
+          this.setInputs(true, false, turnLeft, !turnLeft);
+        } else {
+          this.steerTowards(targetPos, 0.75);
+        }
       }
     }
   }
 
   steerTowards(targetPoint, throttleAmount = 0.8) {
     const toTarget = targetPoint.clone().sub(this.position).normalize();
-    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
     const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
 
     const rightDot = right.dot(toTarget);
@@ -120,9 +121,9 @@ export class AIShip extends Ship {
     let left = false;
     let rightTurn = false;
 
-    if (rightDot > 0.12) {
+    if (rightDot > 0.1) {
       rightTurn = true;
-    } else if (rightDot < -0.12) {
+    } else if (rightDot < -0.1) {
       left = true;
     }
 
