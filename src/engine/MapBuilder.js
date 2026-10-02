@@ -222,12 +222,15 @@ export class MapBuilder {
     // Elevate the entire island well above sea level
     islandGroup.position.set(cfg.centerX, 1.5, cfg.centerZ);
 
-    // 1. Modular Ground Patches (thickened downwards so terrain reaches deep under water)
+    // 1. Modular Ground Patches: Grass patches in the center are elevated higher than sand
     if (cfg.tiles) {
       cfg.tiles.forEach(t => {
+        const isGrass = t.model.includes('grass');
         const tileMesh = assets.getModel(t.model);
-        tileMesh.position.set(t.x, 0.1, t.z);
-        tileMesh.scale.set(t.scale * 3.4, 4.2, t.scale * 3.4);
+        // Grass part in the center is tiered significantly higher than the beach sand
+        const yPos = isGrass ? 0.95 : 0.1;
+        tileMesh.position.set(t.x, yPos, t.z);
+        tileMesh.scale.set(t.scale * 3.4, isGrass ? 5.2 : 4.2, t.scale * 3.4);
         tileMesh.rotation.y = t.rot;
         islandGroup.add(tileMesh);
       });
@@ -237,7 +240,8 @@ export class MapBuilder {
     if (cfg.foliage) {
       cfg.foliage.forEach(f => {
         const fMesh = assets.getModel(f.model);
-        fMesh.position.set(f.x, 1.1, f.z);
+        const isCentral = Math.hypot(f.x, f.z) < 20;
+        fMesh.position.set(f.x, isCentral ? 1.95 : 1.1, f.z);
         fMesh.scale.setScalar(f.scale);
         fMesh.rotation.y = f.rot;
         islandGroup.add(fMesh);
@@ -248,7 +252,8 @@ export class MapBuilder {
     if (cfg.rocks) {
       cfg.rocks.forEach(r => {
         const rMesh = assets.getModel(r.model);
-        rMesh.position.set(r.x, 0.7, r.z);
+        const isCentral = Math.hypot(r.x, r.z) < 18;
+        rMesh.position.set(r.x, isCentral ? 1.55 : 0.7, r.z);
         rMesh.scale.set(r.scale, r.scale * 1.3, r.scale);
         rMesh.rotation.y = r.rot;
         islandGroup.add(rMesh);
@@ -259,7 +264,8 @@ export class MapBuilder {
     if (cfg.palms) {
       cfg.palms.forEach(p => {
         const pMesh = assets.getModel(p.model);
-        pMesh.position.set(p.x, 1.1, p.z);
+        const isCentral = Math.hypot(p.x, p.z) < 18;
+        pMesh.position.set(p.x, isCentral ? 1.95 : 1.1, p.z);
         pMesh.scale.setScalar(p.scale);
         pMesh.rotation.y = p.rot;
         islandGroup.add(pMesh);
@@ -270,7 +276,9 @@ export class MapBuilder {
     if (cfg.structures) {
       cfg.structures.forEach(s => {
         const sMesh = assets.getModel(s.model);
-        sMesh.position.set(s.x, 0.9, s.z);
+        const isWaterStructure = s.model.includes('dock') || s.model.includes('boat');
+        const yPos = isWaterStructure ? 0.35 : 1.85;
+        sMesh.position.set(s.x, yPos, s.z);
         sMesh.scale.setScalar(s.scale);
         sMesh.rotation.y = s.rot;
         islandGroup.add(sMesh);
@@ -281,7 +289,8 @@ export class MapBuilder {
     if (cfg.props) {
       cfg.props.forEach(pr => {
         const prMesh = assets.getModel(pr.model);
-        prMesh.position.set(pr.x, 1.1, pr.z);
+        const isCentral = Math.hypot(pr.x, pr.z) < 18;
+        prMesh.position.set(pr.x, isCentral ? 1.95 : 1.1, pr.z);
         prMesh.scale.setScalar(pr.scale);
         prMesh.rotation.y = pr.rot;
         islandGroup.add(prMesh);

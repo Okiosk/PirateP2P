@@ -18,16 +18,18 @@ export class ProjectileManager {
   }
 
   spawnVolley(shooterId, cannonWorldPositions, directions, baseVel = new THREE.Vector3()) {
+    const forwardVel = new THREE.Vector3(baseVel.x, 0, baseVel.z);
+
     cannonWorldPositions.forEach((pos, idx) => {
-      // Stagger slightly for rhythmic rolling pirate broadside
+      // Crisp 16ms stagger for rapid rolling broadside
       setTimeout(() => {
-        // Pure horizontal trajectory, completely independent of ship pitch/roll/wave tilt
         const dir = directions[idx].clone().setY(0).normalize();
         const speed = 72.0;
 
-        // Constant horizontal cannon height above sea level
-        const spawnPos = pos.clone();
-        spawnPos.y = 2.4;
+        // Position compensation for ship movement during stagger delay so shots never spawn behind
+        const timeElapsed = (idx * 16) / 1000;
+        const spawnPos = pos.clone().addScaledVector(forwardVel, timeElapsed);
+        spawnPos.y = 2.4; // Fixed horizontal deck height
 
         // Visual cannonball mesh
         const mesh = new THREE.Mesh(this.ballGeo, this.ballMat);
@@ -39,12 +41,15 @@ export class ProjectileManager {
         this.effects.createCannonBlast(spawnPos, dir);
         sounds.playCannon();
 
+        // Velocity inherits ship forward momentum so balls travel alongside ship without lagging behind
+        const vel = dir.clone().multiplyScalar(speed).add(forwardVel);
+
         const ball = {
           id: `${shooterId}_${Date.now()}_${idx}`,
           shooterId: shooterId,
           mesh: mesh,
           pos: spawnPos.clone(),
-          dir: dir,
+          vel: vel,
           speed: speed,
           velY: 0,
           launchY: 2.4,
@@ -55,20 +60,24 @@ export class ProjectileManager {
         };
 
         this.cannonballs.push(ball);
-      }, idx * 28);
+      }, idx * 16);
     });
   }
 
   // Spawn projectile replicated from peer network message
-  spawnRemoteVolley(shooterId, shots) {
+  spawnRemoteVolley(shooterId, shots, baseVel = new THREE.Vector3()) {
+    const forwardVel = new THREE.Vector3(baseVel.x, 0, baseVel.z);
+
     shots.forEach((s, idx) => {
       setTimeout(() => {
-        const mesh = new THREE.Mesh(this.ballGeo, this.ballMat);
-        const spawnPos = new THREE.Vector3(s.pos.x, 2.4, s.pos.z);
-        const rawVel = new THREE.Vector3(s.vel.x, 0, s.vel.z);
-        const dir = rawVel.lengthSq() > 0.001 ? rawVel.clone().normalize() : new THREE.Vector3(1, 0, 0);
+        const timeElapsed = (idx * 16) / 1000;
+        const dir = new THREE.Vector3(s.dir?.x || s.vel?.x || 1, 0, s.dir?.z || s.vel?.z || 0).normalize();
         const speed = 72.0;
 
+        const spawnPos = new THREE.Vector3(s.pos.x, 2.4, s.pos.z).addScaledVector(forwardVel, timeElapsed);
+        spawnPos.y = 2.4;
+
+        const mesh = new THREE.Mesh(this.ballGeo, this.ballMat);
         mesh.position.copy(spawnPos);
         mesh.castShadow = true;
         this.scene.add(mesh);
@@ -76,12 +85,14 @@ export class ProjectileManager {
         this.effects.createCannonBlast(spawnPos, dir);
         sounds.playCannon(spawnPos.distanceTo(window.__cameraPos || spawnPos));
 
+        const vel = dir.clone().multiplyScalar(speed).add(forwardVel);
+
         this.cannonballs.push({
           id: s.id || `${shooterId}_rem_${Date.now()}_${idx}`,
           shooterId: shooterId,
           mesh: mesh,
           pos: spawnPos.clone(),
-          dir: dir,
+          vel: vel,
           speed: speed,
           velY: 0,
           launchY: 2.4,
@@ -90,7 +101,7 @@ export class ProjectileManager {
           life: 4.5,
           trailTimer: 0
         });
-      }, idx * 28);
+      }, idx * 16);
     });
   }
 
@@ -104,11 +115,11 @@ export class ProjectileManager {
         continue;
       }
 
-      // 1. Move horizontally straight along fire vector
-      const stepDist = b.speed * dt;
-      b.pos.x += b.dir.x * stepDist;
-      b.pos.z += b.dir.z * stepDist;
-      b.distTraveled += stepDist;
+      // 1. Move horizontally along total velocity vector (including ship momentum)
+      b.pos.x += b.vel.x * dt;
+      b.pos.z += b.vel.z * dt;
+      // Distance traveled outward from ship
+      b.distTraveled += b.speed * dt;
 
       // 2. Trajectory height:
       // Perfectly flat horizontal flight at constant deck height for 145m, then drops into the water

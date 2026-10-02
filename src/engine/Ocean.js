@@ -248,19 +248,12 @@ export class Ocean {
           float cLight = caustics(vWorldPos.xz, uTime) * smoothstep(0.2, 0.8, normH);
           waterCol += uCrestColor * cLight * 0.32;
 
-          // Apply cartoon lighting
+          // Apply cartoon lighting (clean matte cel-shaded surface without sun glare)
           vec3 finalColor = waterCol * (0.58 + 0.52 * lightStep);
 
-          // 4. Cartoon Specular Sun Disc & Sparkle
-          vec3 H = normalize(L + V);
-          float NdotH = max(0.0, dot(N, H));
-          float specDisc = step(0.965, pow(NdotH, 44.0));
-          float sparkle = step(0.92, pow(NdotH, 80.0)) * step(0.6, snoise(vWorldPos.xz * 0.4 + uTime * 0.5));
-          finalColor += vec3(1.0, 0.98, 0.85) * (specDisc * 0.85 + sparkle * 0.5);
-
-          // 5. Fresnel Aqua Rim Glow
-          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 3.8);
-          finalColor += uCrestColor * fresnel * 0.22;
+          // 4. Subtle Fresnel Aqua Rim on wave contours
+          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 4.0);
+          finalColor += uCrestColor * fresnel * 0.15;
 
           // 6. Stylized Wave Crest Seafoam
           vec2 foamUV = vWorldPos.xz * 0.055 + vec2(uTime * 0.05, uTime * 0.03);

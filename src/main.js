@@ -482,7 +482,8 @@ class Game {
 
     this.network.on('remote_fire', (data) => {
       if (this.projectiles) {
-        this.projectiles.spawnRemoteVolley(data.shooterId || 'peer', data.shots);
+        const baseVel = data.baseVel ? new THREE.Vector3(data.baseVel.x, 0, data.baseVel.z) : new THREE.Vector3();
+        this.projectiles.spawnRemoteVolley(data.shooterId || 'peer', data.shots, baseVel);
       }
     });
 
@@ -651,7 +652,7 @@ class Game {
     if (fired) {
       // Replicate to network peer
       if (this.network.connected) {
-        this.network.sendFire(side, fired.positions, fired.directions);
+        this.network.sendFire(side, fired.positions, fired.directions, this.playerShip.velocity);
       }
     }
   }

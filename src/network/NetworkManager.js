@@ -166,17 +166,14 @@ export class NetworkManager {
     });
   }
 
-  sendFire(side, positions, directions) {
+  sendFire(side, positions, directions, baseVel = { x: 0, y: 0, z: 0 }) {
     this.send({
       type: 'FIRE',
       side: side,
+      baseVel: { x: baseVel.x || 0, y: 0, z: baseVel.z || 0 },
       shots: positions.map((p, i) => ({
-        pos: { x: p.x, y: p.y, z: p.z },
-        vel: {
-          x: directions[i].x * 48.0,
-          y: 7.5,
-          z: directions[i].z * 48.0
-        }
+        pos: { x: p.x, y: 2.4, z: p.z },
+        dir: { x: directions[i].x, y: 0, z: directions[i].z }
       }))
     });
   }

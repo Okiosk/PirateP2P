@@ -427,14 +427,9 @@ export class Ship {
         .add(right.clone().multiplyScalar(sign * 2.3));
       pos.y = 2.4; // Fixed horizontal deck height, zero pitch/roll influence
 
-      // Fan spread in volley (purely horizontal)
-      const angleSpread = ((i / (count - 1 || 1)) - 0.5) * 0.28;
-      const spreadDir = cannonDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleSpread);
-      spreadDir.y = 0;
-      spreadDir.normalize();
-
       positions.push(pos);
-      directions.push(spreadDir);
+      // Perfectly uniform, perpendicular trajectory for both sides!
+      directions.push(cannonDir.clone());
     }
 
     return { positions, directions };
