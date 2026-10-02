@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pirate P2P - Bataille Navale Cartoon 3D</title>
+  <link rel="stylesheet" href="./src/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- 3D Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobby-screen">
+    <div class="lobby-panel">
+      <h1 class="lobby-title">⚔️ PIRATE P2P ⚔️</h1>
+      <p class="lobby-subtitle">Bataille Navale Cartoon en Peer-to-Peer &bull; Kenney Pirate Kit</p>
+
+      <!-- Nom du joueur -->
+      <div class="input-group">
+        <label class="section-label" for="player-name">Nom de votre Capitaine</label>
+        <input type="text" id="player-name" class="pirate-input" value="Capitaine Jack" maxlength="18" />
+      </div>
+
+      <!-- Choix du navire -->
+      <label class="section-label">Choisissez votre Navire</label>
+      <div class="ship-grid" id="ship-grid">
+        <div class="ship-card selected" data-ship="galleon">
+          <div class="ship-icon">🏴‍☠️</div>
+          <div class="ship-title">Galion Pirate</div>
+          <div class="ship-stat">100 PV &bull; 3 Canons / côté</div>
+        </div>
+        <div class="ship-card" data-ship="brigantine">
+          <div class="ship-icon">👑</div>
+          <div class="ship-title">Brigantin Royal</div>
+          <div class="ship-stat">100 PV &bull; Maniable & Rapide</div>
+        </div>
+        <div class="ship-card" data-ship="sloop">
+          <div class="ship-icon">⚡</div>
+          <div class="ship-title">Sloop Léger</div>
+          <div class="ship-stat">80 PV &bull; Grande Vitesse</div>
+        </div>
+        <div class="ship-card" data-ship="ghost">
+          <div class="ship-icon">👻</div>
+          <div class="ship-title">Hollandais Volant</div>
+          <div class="ship-stat">120 PV &bull; Coque Renforcée</div>
+        </div>
+      </div>
+
+      <!-- Mode de jeu -->
+      <label class="section-label">Mode de Jeu</label>
+      <div class="modes-container">
+        <button id="btn-host" class="pirate-btn btn-primary">
+          <span>👑 Héberger une Partie P2P</span>
+          <span class="btn-sub">Génère un code d'invitation WebRTC</span>
+        </button>
+
+        <div style="flex: 1; display: flex; gap: 8px;">
+          <input type="text" id="join-code" class="pirate-input" placeholder="CODE SALON (ex: PIRATE-XXXX)" style="flex: 2; text-transform: uppercase;" />
+          <button id="btn-join" class="pirate-btn btn-secondary" style="flex: 1;">
+            <span>Rejoindre</span>
+          </button>
+        </div>
+
+        <button id="btn-solo" class="pirate-btn btn-solo">
+          <span>🤖 Solo vs IA</span>
+          <span class="btn-sub">Entraînement avec flottes pirates</span>
+        </button>
+      </div>
+
+      <!-- Host Status popup -->
+      <div id="host-status-box" class="host-status-box">
+        <p>⚓ Votre Salon P2P est ouvert ! Transmettez ce code à votre adversaire :</p>
+        <div id="host-code-display" class="host-code-display">PIRATE-XXXX</div>
+        <button id="btn-copy-link" class="copy-btn">📋 Copier le lien d'invitation directe</button>
+        <p style="margin-top: 10px; font-size: 0.85rem; color: #94a3b8;">
+          En attente de connexion WebRTC directe...
+        </p>
+      </div>
+
+      <!-- Contrôles Summary -->
+      <div style="margin-top: 24px; font-size: 0.82rem; color: #94a3b8; display: flex; justify-content: space-around; border-top: 1px solid #334155; padding-top: 14px;">
+        <div>⛵ <strong>Z / S</strong> ou <strong>↑ / ↓</strong> : Hisser / Réduire les voiles</div>
+        <div>🧭 <strong>Q / D</strong> ou <strong>← / →</strong> : Gouvernail</div>
+        <div>💥 <strong>A / E</strong> ou <strong>Clic G / D</strong> : Canons Bâbord / Tribord</div>
+        <div>💣 <strong>ESPACE</strong> : Bordée Complète</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IN-GAME HUD -->
+  <div id="hud-screen">
+    <!-- Top-Left Player Status Card -->
+    <div class="player-status-card hud-interactive">
+      <div class="player-header">
+        <span class="player-title" id="hud-player-name">Capitaine Jack</span>
+        <span style="font-size: 0.75rem; color: #94a3b8;" id="throttle-label">Au Mouillage</span>
+      </div>
+      <div class="hp-container">
+        <div class="hp-fill" id="player-hp-bar"></div>
+        <div class="hp-label" id="player-hp-text">100 / 100 PV</div>
+      </div>
+      <div class="stats-row">
+        <span>💰 <strong id="player-gold-text">0 Or</strong></span>
+        <span>☠️ <strong id="player-score-text">0 pts</strong></span>
+      </div>
+    </div>
+
+    <!-- Top-Center Banner & Room Code -->
+    <div class="top-center-banner">
+      <div class="room-badge hud-interactive" id="room-badge" title="Cliquer pour copier le lien">
+        ⚓ Salon P2P : <span id="hud-room-code">SOLO</span>
+      </div>
+      <div id="announcement-banner" class="hidden">À l'attaque !</div>
+    </div>
+
+    <!-- Top-Right Minimap -->
+    <div class="minimap-container">
+      <canvas id="minimap-canvas" width="200" height="200"></canvas>
+    </div>
+
+    <!-- Kill Feed -->
+    <div id="kill-feed"></div>
+
+    <!-- Bottom-Center Cannons HUD -->
+    <div class="cannons-hud hud-interactive">
+      <div class="cannon-slot" id="btn-fire-left" style="cursor: pointer;" title="Cliquer ou appuyer sur [F] / [Clic Gauche] pour tirer à Bâbord">
+        <div class="cannon-name">Bâbord (Gauche)</div>
+        <div class="cooldown-gauge">
+          <div class="cooldown-fill" id="cannon-left-bar"></div>
+        </div>
+        <div class="key-hint">[F] ou Clic Gauche</div>
+      </div>
+
+      <div class="cannon-slot" id="btn-fire-both" style="min-width: 120px; cursor: pointer;" title="Cliquer ou appuyer sur [ESPACE] pour une double bordée">
+        <div class="cannon-name" style="color: var(--pirate-gold);">💥 Double Bordée</div>
+        <div class="key-hint">[ESPACE]</div>
+      </div>
+
+      <div class="cannon-slot" id="btn-fire-right" style="cursor: pointer;" title="Cliquer ou appuyer sur [E] / [Clic Droit] pour tirer à Tribord">
+        <div class="cannon-name">Tribord (Droite)</div>
+        <div class="cooldown-gauge">
+          <div class="cooldown-fill" id="cannon-right-bar"></div>
+        </div>
+        <div class="key-hint">[E] ou Clic Droit</div>
+      </div>
+    </div>
+
+    <!-- Bottom-Left Quick Pirate Emotes -->
+    <div class="emotes-bar hud-interactive">
+      <button class="emote-btn" data-emote="Ahoy ! 🏴‍☠️">[1] Ahoy !</button>
+      <button class="emote-btn" data-emote="À l'abordage ! ⚔️">[2] À l'abordage !</button>
+      <button class="emote-btn" data-emote="Feu à volonté ! 💣">[3] Feu à volonté !</button>
+      <button class="emote-btn" data-emote="Bien joué marin ! 🍺">[4] Bien joué !</button>
+    </div>
+
+    <!-- Mute sound toggle -->
+    <button id="mute-btn" class="hud-interactive" title="Couper / Activer le son">🔊</button>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div id="game-over-modal">
+    <div class="modal-card">
+      <h2 id="game-over-title">🏆 VICTOIRE ÉPIQUE !</h2>
+      <div id="game-over-stats" class="modal-stats"></div>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button id="btn-rematch" class="pirate-btn btn-primary" style="flex: 1;">
+          <span>⚔️ Revanche</span>
+        </button>
+        <button id="btn-return-lobby" class="pirate-btn btn-secondary" style="flex: 1;">
+          <span>⚓ Menu Principal</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

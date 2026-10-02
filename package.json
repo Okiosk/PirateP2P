@@ -1,0 +1,29 @@
+{
+  "name": "piratep2p",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Okiosk/PirateP2P.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.5",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.2"
+  }
+}
