@@ -7,65 +7,30 @@ export class CameraFollow {
     this.effects = effects;
 
     this.target = null; // Reference to Ship
-    this.distance = 26.0;
-    this.minDistance = 12.0;
-    this.maxDistance = 55.0;
-    this.height = 12.0;
 
-    // Orbit angles relative to ship heading
-    this.azimuth = 0; // Horizontal orbit offset
-    this.elevation = 0.25; // Vertical orbit angle
+    // Fixed 3rd person bird's eye / high angle (vue en plongée) parameters
+    this.distance = 28.0; // Horizontal distance behind ship
+    this.height = 20.0;   // Height above water (plongée / vue du dessus)
+    this.lookAhead = 5.0; // Look-at point ahead of ship
 
-    this.isDragging = false;
-    this.prevMouseX = 0;
-    this.prevMouseY = 0;
-
-    this.currentCamPos = new THREE.Vector3(0, 20, 30);
+    this.currentCamPos = new THREE.Vector3(0, 20, -30);
     this.currentLookAt = new THREE.Vector3(0, 0, 0);
 
-    this.setupListeners();
+    // Prevent context menu on right click so right click shooting works smoothly
+    this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   setTarget(ship) {
     this.target = ship;
     if (ship) {
-      this.currentCamPos.copy(ship.position).add(new THREE.Vector3(0, this.height, this.distance));
-      this.currentLookAt.copy(ship.position);
+      const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), ship.yaw);
+      this.currentCamPos.copy(ship.position)
+        .addScaledVector(forward, -this.distance)
+        .add(new THREE.Vector3(0, this.height, 0));
+      this.currentLookAt.copy(ship.position)
+        .addScaledVector(forward, this.lookAhead)
+        .add(new THREE.Vector3(0, 1.5, 0));
     }
-  }
-
-  setupListeners() {
-    this.domElement.addEventListener('mousedown', (e) => {
-      // Right click or left click drag to rotate camera
-      if (e.button === 2 || e.button === 0) {
-        this.isDragging = true;
-        this.prevMouseX = e.clientX;
-        this.prevMouseY = e.clientY;
-      }
-    });
-
-    window.addEventListener('mouseup', () => {
-      this.isDragging = false;
-    });
-
-    window.addEventListener('mousemove', (e) => {
-      if (!this.isDragging) return;
-      const dx = e.clientX - this.prevMouseX;
-      const dy = e.clientY - this.prevMouseY;
-      this.prevMouseX = e.clientX;
-      this.prevMouseY = e.clientY;
-
-      this.azimuth -= dx * 0.006;
-      this.elevation = Math.max(-0.15, Math.min(1.15, this.elevation - dy * 0.005));
-    });
-
-    // Prevent context menu on right click
-    this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    // Zoom
-    this.domElement.addEventListener('wheel', (e) => {
-      this.distance = Math.max(this.minDistance, Math.min(this.maxDistance, this.distance + e.deltaY * 0.03));
-    }, { passive: true });
   }
 
   update(dt) {
@@ -81,23 +46,19 @@ export class CameraFollow {
       this.camera.updateProjectionMatrix();
     }
 
-    // Desired camera angle = ship heading + player orbit azimuth
-    const totalAngle = shipYaw + this.azimuth + Math.PI;
+    // Fixed 3rd person high angle (vue en plongée) directly aligned with ship heading
+    const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), shipYaw);
 
-    // Spherical offset
-    const hDist = this.distance * Math.cos(this.elevation);
-    const vDist = this.distance * Math.sin(this.elevation) + this.height * 0.5;
+    const targetPos = shipPos.clone()
+      .addScaledVector(forward, -this.distance)
+      .add(new THREE.Vector3(0, this.height, 0));
 
-    const targetPos = new THREE.Vector3(
-      shipPos.x + Math.sin(totalAngle) * hDist,
-      shipPos.y + Math.max(3.0, vDist),
-      shipPos.z + Math.cos(totalAngle) * hDist
-    );
-
-    const lookTarget = shipPos.clone().add(new THREE.Vector3(0, 2.5, 0));
+    const lookTarget = shipPos.clone()
+      .addScaledVector(forward, this.lookAhead)
+      .add(new THREE.Vector3(0, 1.5, 0));
 
     // Smooth camera lag
-    const lerpSpeed = Math.min(1.0, dt * 7.0);
+    const lerpSpeed = Math.min(1.0, dt * 8.0);
     this.currentCamPos.lerp(targetPos, lerpSpeed);
     this.currentLookAt.lerp(lookTarget, lerpSpeed);
 

@@ -254,10 +254,10 @@ export class Ship {
     if (backward) targetThrottle -= 0.5;
     this.throttle = targetThrottle;
 
-    // Steering: Left = turn LEFT (negative yaw towards -X), Right = turn RIGHT (positive yaw towards +X)
+    // Steering: Left = turn LEFT on screen (positive yaw towards world +X), Right = turn RIGHT on screen (negative yaw towards world -X)
     let targetSteer = 0;
-    if (left) targetSteer -= 1.0;
-    if (right) targetSteer += 1.0;
+    if (left) targetSteer += 1.0;
+    if (right) targetSteer -= 1.0;
     this.steering = targetSteer;
 
     // Boost (Shift key)
@@ -387,9 +387,9 @@ export class Ship {
     const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
     const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
 
-    // Left broadside: fires to LEFT (-X)
-    // Right broadside: fires to RIGHT (+X)
-    const sign = side === 'left' ? -1 : 1;
+    // Left broadside: fires to LEFT on screen (world +X)
+    // Right broadside: fires to RIGHT on screen (world -X)
+    const sign = side === 'left' ? 1 : -1;
     const cannonDir = right.clone().multiplyScalar(sign);
 
     const spacing = 1.4;
@@ -430,14 +430,14 @@ export class Ship {
     const { positions, directions } = this.getCannonWorldPositions(side);
     projectileManager.spawnVolley(this.id, positions, directions, this.velocity);
 
-    // Recoil
-    const recoilRoll = (side === 'left' ? 1 : -1) * 0.14;
+    // Recoil (hull tilts in opposite direction of fire)
+    const recoilRoll = (side === 'left' ? -1 : 1) * 0.12;
     this.roll += recoilRoll;
 
     return { side, positions, directions };
   }
 
-  // Ship-to-Ship Physical Bounce & Collision
+  // Ship-to-Ship Physical Bounce & Collision (0 Damage)
   resolveShipCollision(other) {
     if (this.isDead || other.isDead) return;
 
@@ -467,18 +467,14 @@ export class Ship {
         this.velocity.addScaledVector(normal, -impulseMag);
         other.velocity.addScaledVector(normal, impulseMag);
 
-        // Visual & Sound Feedback
+        // Visual & Sound Feedback (Splashes, wood particles, sound, but 0 damage)
         const contactPos = this.position.clone().addScaledVector(normal, this.hitRadius);
-        this.effects.createShipHit(contactPos, 15);
+        this.effects.createShipHit(contactPos, 0);
         sounds.playHit();
 
         // Hull tilt away from impact
         this.roll += (Math.random() - 0.5) * 0.3;
         other.roll += (Math.random() - 0.5) * 0.3;
-
-        // Minor ramming damage
-        this.takeDamage(15, other.id);
-        other.takeDamage(15, this.id);
       }
     }
   }

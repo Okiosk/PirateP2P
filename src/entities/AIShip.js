@@ -83,8 +83,8 @@ export class AIShip extends Ship {
       this.steerTowards(targetPos, 0.95);
     } else {
       // Flank target to present broadside
-      const useRightBroadside = rightDot >= 0;
-      const broadsideNormal = useRightBroadside ? right : right.clone().negate();
+      const useLeftBroadside = rightDot >= 0;
+      const broadsideNormal = useLeftBroadside ? right : right.clone().negate();
       const broadsideAlignment = broadsideNormal.dot(toTarget);
 
       if (broadsideAlignment > 0.75) {
@@ -93,18 +93,16 @@ export class AIShip extends Ship {
 
         this.fireTimer -= dt;
         if (this.fireTimer <= 0) {
-          const side = useRightBroadside ? 'right' : 'left';
+          const side = useLeftBroadside ? 'left' : 'right';
           if (this.canFire(side)) {
             this.fire(side, projectileManager);
             this.fireTimer = 2.5 + Math.random() * 1.5;
           }
         }
       } else {
-        // Steer towards target or flank
+        // Steer towards flank
         if (forwardDot > 0.2) {
-          // Pointing directly at target: turn away to align flank
-          const turnLeft = useRightBroadside;
-          this.setInputs(true, false, turnLeft, !turnLeft);
+          this.setInputs(true, false, !useLeftBroadside, useLeftBroadside);
         } else {
           this.steerTowards(targetPos, 0.75);
         }
@@ -122,9 +120,9 @@ export class AIShip extends Ship {
     let rightTurn = false;
 
     if (rightDot > 0.1) {
-      rightTurn = true;
-    } else if (rightDot < -0.1) {
       left = true;
+    } else if (rightDot < -0.1) {
+      rightTurn = true;
     }
 
     this.setInputs(true, false, left, rightTurn);
