@@ -42,20 +42,20 @@ export class UIManager {
     }
 
     // Cannon Cooldown Bars
+    // Cannon Charge & Barrage Bars
     const leftBar = document.getElementById('cannon-left-bar');
     const rightBar = document.getElementById('cannon-right-bar');
-    const reloadTime = ship.reloadTime;
 
     if (leftBar) {
-      const leftReadyPct = Math.max(0, Math.min(100, (1 - ship.leftCooldown / reloadTime) * 100));
-      leftBar.style.width = `${leftReadyPct}%`;
-      leftBar.style.backgroundColor = ship.leftCooldown <= 0 ? '#38ef7d' : '#f39c12';
+      const leftChargePct = Math.max(0, Math.min(100, (ship.leftCharge / (ship.maxCharge || 100)) * 100));
+      leftBar.style.width = `${leftChargePct}%`;
+      leftBar.style.backgroundColor = leftChargePct > 40 ? '#38ef7d' : leftChargePct > 18 ? '#f39c12' : '#e74c3c';
     }
 
     if (rightBar) {
-      const rightReadyPct = Math.max(0, Math.min(100, (1 - ship.rightCooldown / reloadTime) * 100));
-      rightBar.style.width = `${rightReadyPct}%`;
-      rightBar.style.backgroundColor = ship.rightCooldown <= 0 ? '#38ef7d' : '#f39c12';
+      const rightChargePct = Math.max(0, Math.min(100, (ship.rightCharge / (ship.maxCharge || 100)) * 100));
+      rightBar.style.width = `${rightChargePct}%`;
+      rightBar.style.backgroundColor = rightChargePct > 40 ? '#38ef7d' : rightChargePct > 18 ? '#f39c12' : '#e74c3c';
     }
 
     // Throttle label

@@ -9,50 +9,53 @@ export class ProjectileManager {
     this.effects = effects;
     this.map = map;
     this.cannonballs = [];
-    this.ballGeo = new THREE.SphereGeometry(0.35, 8, 8);
+    this.ballGeo = new THREE.SphereGeometry(0.38, 8, 8);
     this.ballMat = new THREE.MeshStandardMaterial({
       color: 0x222222,
-      roughness: 0.4,
-      metalness: 0.8
+      roughness: 0.35,
+      metalness: 0.85
     });
   }
 
   spawnVolley(shooterId, cannonWorldPositions, directions, baseVel = new THREE.Vector3()) {
-    const shotsData = [];
-
     cannonWorldPositions.forEach((pos, idx) => {
-      // Stagger slightly for fast-paced rolling pirate broadside
+      // Stagger slightly for rhythmic rolling pirate broadside
       setTimeout(() => {
-        const dir = directions[idx];
-        const speed = 58.0;
+        // Pure horizontal trajectory, completely independent of ship pitch/roll/wave tilt
+        const dir = directions[idx].clone().setY(0).normalize();
+        const speed = 72.0;
 
-        // Ballistic velocity with upward loft
-        const vel = dir.clone().multiplyScalar(speed)
-          .add(baseVel.clone().multiplyScalar(0.45));
-        vel.y = 8.5 + Math.random() * 2.0;
+        // Constant horizontal cannon height above sea level
+        const spawnPos = pos.clone();
+        spawnPos.y = 2.4;
 
         // Visual cannonball mesh
         const mesh = new THREE.Mesh(this.ballGeo, this.ballMat);
-        mesh.position.copy(pos);
+        mesh.position.copy(spawnPos);
         mesh.castShadow = true;
         this.scene.add(mesh);
 
         // Muzzle blast visual & audio
-        this.effects.createCannonBlast(pos, dir);
+        this.effects.createCannonBlast(spawnPos, dir);
         sounds.playCannon();
 
         const ball = {
           id: `${shooterId}_${Date.now()}_${idx}`,
           shooterId: shooterId,
           mesh: mesh,
-          pos: pos.clone(),
-          vel: vel,
-          life: 3.5,
+          pos: spawnPos.clone(),
+          dir: dir,
+          speed: speed,
+          velY: 0,
+          launchY: 2.4,
+          distTraveled: 0,
+          flatRange: 145.0, // Stays at exact same height for 145 meters
+          life: 4.5,
           trailTimer: 0
         };
 
         this.cannonballs.push(ball);
-      }, idx * 35); // 35ms ultra rapid rolling volley
+      }, idx * 28);
     });
   }
 
@@ -61,32 +64,37 @@ export class ProjectileManager {
     shots.forEach((s, idx) => {
       setTimeout(() => {
         const mesh = new THREE.Mesh(this.ballGeo, this.ballMat);
-        const pos = new THREE.Vector3(s.pos.x, s.pos.y, s.pos.z);
-        const vel = new THREE.Vector3(s.vel.x, s.vel.y, s.vel.z);
-        mesh.position.copy(pos);
+        const spawnPos = new THREE.Vector3(s.pos.x, 2.4, s.pos.z);
+        const rawVel = new THREE.Vector3(s.vel.x, 0, s.vel.z);
+        const dir = rawVel.lengthSq() > 0.001 ? rawVel.clone().normalize() : new THREE.Vector3(1, 0, 0);
+        const speed = 72.0;
+
+        mesh.position.copy(spawnPos);
         mesh.castShadow = true;
         this.scene.add(mesh);
 
-        const dir = vel.clone().normalize();
-        this.effects.createCannonBlast(pos, dir);
-        sounds.playCannon(pos.distanceTo(window.__cameraPos || pos));
+        this.effects.createCannonBlast(spawnPos, dir);
+        sounds.playCannon(spawnPos.distanceTo(window.__cameraPos || spawnPos));
 
         this.cannonballs.push({
           id: s.id || `${shooterId}_rem_${Date.now()}_${idx}`,
           shooterId: shooterId,
           mesh: mesh,
-          pos: pos,
-          vel: vel,
-          life: 3.5,
+          pos: spawnPos.clone(),
+          dir: dir,
+          speed: speed,
+          velY: 0,
+          launchY: 2.4,
+          distTraveled: 0,
+          flatRange: 145.0,
+          life: 4.5,
           trailTimer: 0
         });
-      }, idx * 35);
+      }, idx * 28);
     });
   }
 
   update(dt, targets = [], onHitCallback = null) {
-    const gravity = -20.0;
-
     for (let i = this.cannonballs.length - 1; i >= 0; i--) {
       const b = this.cannonballs[i];
       b.life -= dt;
@@ -96,20 +104,31 @@ export class ProjectileManager {
         continue;
       }
 
-      // Physics
-      b.vel.y += gravity * dt;
-      b.pos.addScaledVector(b.vel, dt);
-      b.mesh.position.copy(b.pos);
+      // 1. Move horizontally straight along fire vector
+      const stepDist = b.speed * dt;
+      b.pos.x += b.dir.x * stepDist;
+      b.pos.z += b.dir.z * stepDist;
+      b.distTraveled += stepDist;
 
-      // Trailing smoke
-      b.trailTimer += dt;
-      if (b.trailTimer > 0.05) {
-        b.trailTimer = 0;
-        // Light smoke puff behind cannonball
-        // Handled subtly by effects if needed
+      // 2. Trajectory height:
+      // Perfectly flat horizontal flight at constant deck height for 145m, then drops into the water
+      if (b.distTraveled < b.flatRange) {
+        b.pos.y = b.launchY;
+        b.velY = 0;
+      } else {
+        b.velY -= 36.0 * dt;
+        b.pos.y += b.velY * dt;
       }
 
-      // 1. Water collision
+      b.mesh.position.copy(b.pos);
+
+      // Trailing smoke puff
+      b.trailTimer += dt;
+      if (b.trailTimer > 0.06) {
+        b.trailTimer = 0;
+      }
+
+      // 3. Water collision (after dropping or reaching wave crest)
       const waterY = this.ocean.getWaveHeight(b.pos.x, b.pos.z);
       if (b.pos.y <= waterY) {
         this.effects.createWaterSplash(new THREE.Vector3(b.pos.x, waterY, b.pos.z));
@@ -118,28 +137,28 @@ export class ProjectileManager {
         continue;
       }
 
-      // 2. Island collision
-      const islandHit = this.map.checkCollision(b.pos, 0.5);
+      // 4. Island collision
+      const islandHit = this.map.checkCollision(b.pos, 0.6);
       if (islandHit.collided) {
         this.effects.createWaterSplash(b.pos);
         this.removeBall(i);
         continue;
       }
 
-      // 3. Target ship collisions
+      // 5. Target ship collisions
       let hitTarget = false;
       for (const target of targets) {
         if (!target || target.isDead) continue;
         if (target.id === b.shooterId) continue; // Don't shoot own ship
 
         const targetPos = target.mesh.position;
-        // 2D distance for ship hull cylinder
+        // 2D cylindrical bounding volume for ship hull
         const dx = b.pos.x - targetPos.x;
         const dz = b.pos.z - targetPos.z;
         const dy = Math.abs(b.pos.y - targetPos.y);
 
-        const hitRadius = target.hitRadius || 3.8;
-        const hitHeight = target.hitHeight || 4.5;
+        const hitRadius = target.hitRadius || 4.2;
+        const hitHeight = target.hitHeight || 5.5;
 
         if (dx * dx + dz * dz < hitRadius * hitRadius && dy < hitHeight) {
           const dmg = 18 + Math.floor(Math.random() * 8); // 18-25 damage

@@ -114,7 +114,18 @@ export class Ship {
     this.score = 0;
     this.gold = parseInt(localStorage.getItem('PIRATE_GOLD') || '0', 10);
 
-    // Reload timers
+    // Reload & Burst Bar System (allows holding fire for rapid barrages!)
+    this.maxCharge = 100.0;
+    this.leftCharge = 100.0;
+    this.rightCharge = 100.0;
+    this.volleyCost = 20.0; // 5 full volleys per full charge
+    this.burstInterval = 0.18; // Rhythmic delay between shots while holding
+    this.leftBurstTimer = 0;
+    this.rightBurstTimer = 0;
+    this.leftRechargeDelay = 0;
+    this.rightRechargeDelay = 0;
+    this.rechargeRate = 60.0; // Fast recharge back to 100% in ~1.6s
+
     this.leftCooldown = 0;
     this.rightCooldown = 0;
 
@@ -378,6 +389,14 @@ export class Ship {
     this.throttle = 0;
     this.steering = 0;
     this.boostEnergy = 100.0;
+    this.leftCharge = this.maxCharge;
+    this.rightCharge = this.maxCharge;
+    this.leftBurstTimer = 0;
+    this.rightBurstTimer = 0;
+    this.leftRechargeDelay = 0;
+    this.rightRechargeDelay = 0;
+    this.leftCooldown = 0;
+    this.rightCooldown = 0;
     this.mesh.rotation.set(0, this.yaw, 0);
     this.updateBillboard();
     this.effects.createWaterSplash(this.position);
@@ -406,11 +425,13 @@ export class Ship {
       const pos = this.position.clone()
         .add(forward.clone().multiplyScalar(zOffset))
         .add(right.clone().multiplyScalar(sign * 2.3));
-      pos.y += 1.3;
+      pos.y = 2.4; // Fixed horizontal deck height, zero pitch/roll influence
 
-      // Fan spread in volley
-      const angleSpread = ((i / (count - 1 || 1)) - 0.5) * 0.32;
+      // Fan spread in volley (purely horizontal)
+      const angleSpread = ((i / (count - 1 || 1)) - 0.5) * 0.28;
       const spreadDir = cannonDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleSpread);
+      spreadDir.y = 0;
+      spreadDir.normalize();
 
       positions.push(pos);
       directions.push(spreadDir);
@@ -421,23 +442,29 @@ export class Ship {
 
   canFire(side) {
     if (this.isDead) return false;
-    return side === 'left' ? this.leftCooldown <= 0 : this.rightCooldown <= 0;
+    const charge = side === 'left' ? this.leftCharge : this.rightCharge;
+    const burstTimer = side === 'left' ? this.leftBurstTimer : this.rightBurstTimer;
+    return charge >= this.volleyCost && burstTimer <= 0;
   }
 
   fire(side, projectileManager) {
     if (!this.canFire(side)) return false;
 
     if (side === 'left') {
-      this.leftCooldown = this.reloadTime;
+      this.leftCharge = Math.max(0, this.leftCharge - this.volleyCost);
+      this.leftBurstTimer = this.burstInterval;
+      this.leftRechargeDelay = 0.35;
     } else {
-      this.rightCooldown = this.reloadTime;
+      this.rightCharge = Math.max(0, this.rightCharge - this.volleyCost);
+      this.rightBurstTimer = this.burstInterval;
+      this.rightRechargeDelay = 0.35;
     }
 
     const { positions, directions } = this.getCannonWorldPositions(side);
     projectileManager.spawnVolley(this.id, positions, directions, this.velocity);
 
-    // Recoil (hull tilts in opposite direction of fire)
-    const recoilRoll = (side === 'left' ? -1 : 1) * 0.12;
+    // Recoil (hull tilts slightly in opposite direction of fire)
+    const recoilRoll = (side === 'left' ? -1 : 1) * 0.08;
     this.roll += recoilRoll;
 
     return { side, positions, directions };
@@ -489,9 +516,24 @@ export class Ship {
   }
 
   update(dt, map) {
-    // Cooldowns
-    if (this.leftCooldown > 0) this.leftCooldown = Math.max(0, this.leftCooldown - dt);
-    if (this.rightCooldown > 0) this.rightCooldown = Math.max(0, this.rightCooldown - dt);
+    // Burst timers & Cannon Charge Recharge (hold-to-fire barrage system)
+    if (this.leftBurstTimer > 0) this.leftBurstTimer = Math.max(0, this.leftBurstTimer - dt);
+    if (this.rightBurstTimer > 0) this.rightBurstTimer = Math.max(0, this.rightBurstTimer - dt);
+
+    if (this.leftRechargeDelay > 0) {
+      this.leftRechargeDelay = Math.max(0, this.leftRechargeDelay - dt);
+    } else {
+      this.leftCharge = Math.min(this.maxCharge, this.leftCharge + this.rechargeRate * dt);
+    }
+
+    if (this.rightRechargeDelay > 0) {
+      this.rightRechargeDelay = Math.max(0, this.rightRechargeDelay - dt);
+    } else {
+      this.rightCharge = Math.min(this.maxCharge, this.rightCharge + this.rechargeRate * dt);
+    }
+
+    this.leftCooldown = Math.max(0, (1.0 - this.leftCharge / this.maxCharge) * this.reloadTime);
+    this.rightCooldown = Math.max(0, (1.0 - this.rightCharge / this.maxCharge) * this.reloadTime);
 
     // Boost Energy Regen & Drain
     if (this.isBoosting) {

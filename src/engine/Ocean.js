@@ -1,22 +1,23 @@
 import * as THREE from 'three';
 
 export class Ocean {
-  constructor(scene, size = 1400, segments = 400) {
+  constructor(scene, size = 1400, segments = 512) {
     this.scene = scene;
     this.size = size;
     this.time = 0;
 
-    // High-detail ocean geometry (400x400 = 160k vertices)
+    // Ultra high-detail ocean mesh (512x512 = 262k vertices)
     const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
     geometry.rotateX(-Math.PI / 2);
 
-    // Cel-shaded Cartoon Colors
+    // Cel-shaded Cartoon Tropical Palette
     this.colors = {
-      deep: new THREE.Color(0x064e6b),
-      mid: new THREE.Color(0x0891b2),
-      shallow: new THREE.Color(0x22d3ee),
-      foam: new THREE.Color(0xffffff),
-      sun: new THREE.Color(0xfffbeb)
+      deep: new THREE.Color(0x04344d),      // Deep Caribbean navy abyss
+      mid: new THREE.Color(0x087e9d),       // Vivid tropical azure
+      shallow: new THREE.Color(0x18c8dc),   // Crystal shallow lagoon cyan
+      crest: new THREE.Color(0x5eead4),     // Luminous crest mint
+      foam: new THREE.Color(0xf8fafc),      // Crisp white seafoam
+      sun: new THREE.Color(0xfffbeb)        // Warm sunlight
     };
 
     this.uniforms = {
@@ -24,6 +25,7 @@ export class Ocean {
       uDeepColor: { value: this.colors.deep },
       uMidColor: { value: this.colors.mid },
       uShallowColor: { value: this.colors.shallow },
+      uCrestColor: { value: this.colors.crest },
       uFoamColor: { value: this.colors.foam },
       uSunDir: { value: new THREE.Vector3(120, 160, 100).normalize() }
     };
@@ -36,15 +38,15 @@ export class Ocean {
         varying vec3 vWorldPos;
         varying vec3 vNormal;
         varying float vWaveHeight;
+        varying float vIslandDamp;
 
         //
-        // Classic 2D / 3D Simplex-style value noise (hash-based, no textures)
+        // 2D Simplex Noise (Ashima Arts / Ian McEwan)
         //
         vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec3 permute(vec3 x) { return mod289(((x * 34.0) + 10.0) * x); }
 
-        // 2D simplex noise  (Ashima Arts / Ian McEwan)
         float snoise(vec2 v) {
           const vec4 C = vec4(
             0.211324865405187,   // (3.0 - sqrt(3.0)) / 6.0
@@ -53,16 +55,13 @@ export class Ocean {
             0.024390243902439    // 1.0 / 41.0
           );
 
-          // First corner
           vec2 i  = floor(v + dot(v, C.yy));
           vec2 x0 = v - i + dot(i, C.xx);
 
-          // Other corners
           vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
           vec4 x12 = x0.xyxy + C.xxzz;
           x12.xy -= i1;
 
-          // Permutations
           i = mod289(i);
           vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0))
                                       + i.x + vec3(0.0, i1.x, 1.0));
@@ -71,7 +70,6 @@ export class Ocean {
           m = m * m;
           m = m * m;
 
-          // Gradients
           vec3 x  = 2.0 * fract(p * C.www) - 1.0;
           vec3 h  = abs(x) - 0.5;
           vec3 ox = floor(x + 0.5);
@@ -86,57 +84,74 @@ export class Ocean {
           return 130.0 * dot(m, g);
         }
 
-        // fBM (fractal Brownian motion) for organic non-repeating waves
+        // fBM with peaked wave harmonics for stylized cartoon crests
         float fbm(vec2 p, float t) {
           float value = 0.0;
           float amplitude = 1.0;
           float frequency = 1.0;
 
-          // 5 octaves for rich detail
           for (int i = 0; i < 5; i++) {
-            value += amplitude * snoise(p * frequency + t * vec2(0.4, 0.3) * float(i + 1) * 0.35);
+            float n = snoise(p * frequency + t * vec2(0.38, 0.28) * float(i + 1) * 0.35);
+            // Cartoon wave shaping: slightly sharper wave crests
+            float peaked = 1.0 - abs(n);
+            value += amplitude * mix(n, peaked * 1.3 - 0.3, 0.45);
             amplitude *= 0.48;
             frequency *= 2.15;
-            p += vec2(1.7, 1.3);  // Domain rotation / offset to break symmetry
+            p += vec2(1.7, 1.3);
           }
 
           return value;
         }
 
-        // Main wave height function
-        float calcWave(vec2 p, float t) {
+        // Island Proximity Dampening: Calms ocean near all 5 islands so water never submerges land
+        float getIslandDamp(vec2 p) {
+          float d0 = length(p - vec2(0.0, 0.0)) / 48.0;          // Central Island
+          float d1 = length(p - vec2(0.0, -200.0)) / 42.0;       // North Fort
+          float d2 = length(p - vec2(-40.0, 210.0)) / 44.0;      // South Wreck
+          float d3 = length(p - vec2(220.0, 40.0)) / 42.0;       // East Atoll
+          float d4 = length(p - vec2(-220.0, -50.0)) / 42.0;     // West Reef
+          float minD = min(min(min(d0, d1), min(d2, d3)), d4);
+          return smoothstep(0.42, 1.25, minD);
+        }
+
+        // Main Wave Height function
+        float calcRawWave(vec2 p, float t) {
           float h = 0.0;
-
-          // Layer 1: Large organic ocean swell (slow, broad)
-          h += fbm(p * 0.015 + vec2(t * 0.18, t * 0.12), t * 0.2) * 2.0;
-
-          // Layer 2: Medium rolling waves (cross direction)
-          h += fbm(p.yx * 0.04 + vec2(-t * 0.3, t * 0.22), t * 0.35) * 0.85;
-
-          // Layer 3: Fine choppy surface detail
-          h += snoise(p * 0.09 + vec2(t * 0.55, -t * 0.42)) * 0.38;
-
+          // Layer 1: Broad organic ocean swell
+          h += fbm(p * 0.014 + vec2(t * 0.16, t * 0.11), t * 0.18) * 1.9;
+          // Layer 2: Cross rolling swells
+          h += fbm(p.yx * 0.038 + vec2(-t * 0.28, t * 0.20), t * 0.30) * 0.80;
+          // Layer 3: Fine choppy cartoon ripples
+          h += snoise(p * 0.085 + vec2(t * 0.50, -t * 0.38)) * 0.32;
           // Layer 4: Micro ripples
-          h += snoise(p * 0.22 + vec2(-t * 0.9, t * 0.65)) * 0.15;
-
+          h += snoise(p * 0.20 + vec2(-t * 0.85, t * 0.60)) * 0.12;
           return h;
+        }
+
+        float calcWaveWithIslands(vec2 p, float t) {
+          float raw = calcRawWave(p, t);
+          float damp = getIslandDamp(p);
+          // Wave amplitude scales down near shore; safely rests at -0.45m inside islands
+          return raw * damp - (1.0 - damp) * 0.45;
         }
 
         void main() {
           vec3 pos = position;
           vec4 worldPos = modelMatrix * vec4(pos, 1.0);
 
-          float h = calcWave(worldPos.xz, uTime);
+          float h = calcWaveWithIslands(worldPos.xz, uTime);
           worldPos.y += h;
+
           vWaveHeight = h;
+          vIslandDamp = getIslandDamp(worldPos.xz);
           vWorldPos = worldPos.xyz;
 
           // Analytical normals via finite differences
           float delta = 0.35;
-          float hR = calcWave(worldPos.xz + vec2(delta, 0.0), uTime);
-          float hL = calcWave(worldPos.xz - vec2(delta, 0.0), uTime);
-          float hU = calcWave(worldPos.xz + vec2(0.0, delta), uTime);
-          float hD = calcWave(worldPos.xz - vec2(0.0, delta), uTime);
+          float hR = calcWaveWithIslands(worldPos.xz + vec2(delta, 0.0), uTime);
+          float hL = calcWaveWithIslands(worldPos.xz - vec2(delta, 0.0), uTime);
+          float hU = calcWaveWithIslands(worldPos.xz + vec2(0.0, delta), uTime);
+          float hD = calcWaveWithIslands(worldPos.xz - vec2(0.0, delta), uTime);
 
           vec3 norm = normalize(vec3(hL - hR, 2.0 * delta, hD - hU));
           vNormal = norm;
@@ -149,14 +164,16 @@ export class Ocean {
         uniform vec3 uDeepColor;
         uniform vec3 uMidColor;
         uniform vec3 uShallowColor;
+        uniform vec3 uCrestColor;
         uniform vec3 uFoamColor;
         uniform vec3 uSunDir;
 
         varying vec3 vWorldPos;
         varying vec3 vNormal;
         varying float vWaveHeight;
+        varying float vIslandDamp;
 
-        // Compact hash noise for foam detail
+        // Compact noise helper for fragment effects
         vec3 mod289f(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec2 mod289f(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
         vec3 permutef(vec3 x) { return mod289f(((x * 34.0) + 10.0) * x); }
@@ -183,6 +200,16 @@ export class Ocean {
           return 130.0 * dot(m, g);
         }
 
+        // Stylized Cartoon Caustics (interlocking light web beneath water surface)
+        float caustics(vec2 p, float t) {
+          vec2 uv1 = p * 0.12 + vec2(t * 0.15, t * 0.09);
+          vec2 uv2 = p * 0.16 + vec2(-t * 0.11, t * 0.14);
+          float s1 = snoise(uv1);
+          float s2 = snoise(uv2);
+          float lines = 1.0 - abs(s1 + s2);
+          return smoothstep(0.66, 0.95, lines);
+        }
+
         float foamFbm(vec2 p) {
           float v = 0.0;
           v += snoise(p * 1.0) * 0.5;
@@ -196,59 +223,70 @@ export class Ocean {
           vec3 L = normalize(uSunDir);
           vec3 V = normalize(cameraPosition - vWorldPos);
 
-          // Cel-shaded Diffuse Lighting (stepped cartoon shading)
+          // 1. Stepped Cartoon Diffuse Lighting
           float NdotL = dot(N, L);
-          float lightStep = smoothstep(-0.05, 0.12, NdotL) * 0.35
-                          + smoothstep(0.35, 0.55, NdotL) * 0.35
-                          + smoothstep(0.7, 0.85, NdotL) * 0.3;
+          float lightStep = smoothstep(-0.08, 0.10, NdotL) * 0.35
+                          + smoothstep(0.32, 0.52, NdotL) * 0.35
+                          + smoothstep(0.68, 0.85, NdotL) * 0.30;
 
-          // Water depth gradient based on wave height
-          float normH = clamp((vWaveHeight + 2.5) / 5.5, 0.0, 1.0);
+          // 2. Multi-tone Cartoon Color Ramp based on wave height
+          float normH = clamp((vWaveHeight + 2.2) / 4.8, 0.0, 1.0);
           vec3 waterCol;
-          if (normH < 0.4) {
-            waterCol = mix(uDeepColor, uMidColor, normH / 0.4);
+          if (normH < 0.35) {
+            waterCol = mix(uDeepColor, uMidColor, normH / 0.35);
+          } else if (normH < 0.72) {
+            waterCol = mix(uMidColor, uShallowColor, (normH - 0.35) / 0.37);
           } else {
-            waterCol = mix(uMidColor, uShallowColor, (normH - 0.4) / 0.6);
+            waterCol = mix(uShallowColor, uCrestColor, (normH - 0.72) / 0.28);
           }
 
-          // Noise-based subtle color variation to break uniformity
-          float colorNoise = snoise(vWorldPos.xz * 0.008 + uTime * 0.03) * 0.12;
-          waterCol = mix(waterCol, uShallowColor, max(0.0, colorNoise));
+          // Subtle organic color modulation
+          float colVar = snoise(vWorldPos.xz * 0.007 + uTime * 0.025) * 0.10;
+          waterCol = mix(waterCol, uCrestColor, max(0.0, colVar));
+
+          // 3. Cartoon Caustics in shallows & mid depths
+          float cLight = caustics(vWorldPos.xz, uTime) * smoothstep(0.2, 0.8, normH);
+          waterCol += uCrestColor * cLight * 0.32;
 
           // Apply cartoon lighting
-          vec3 finalColor = waterCol * (0.55 + 0.55 * lightStep);
+          vec3 finalColor = waterCol * (0.58 + 0.52 * lightStep);
 
-          // Cartoon specular sun highlight (sharp toon disc)
+          // 4. Cartoon Specular Sun Disc & Sparkle
           vec3 H = normalize(L + V);
           float NdotH = max(0.0, dot(N, H));
-          float spec = step(0.96, pow(NdotH, 40.0));
-          finalColor += vec3(1.0, 0.97, 0.82) * spec * 0.8;
+          float specDisc = step(0.965, pow(NdotH, 44.0));
+          float sparkle = step(0.92, pow(NdotH, 80.0)) * step(0.6, snoise(vWorldPos.xz * 0.4 + uTime * 0.5));
+          finalColor += vec3(1.0, 0.98, 0.85) * (specDisc * 0.85 + sparkle * 0.5);
 
-          // Fresnel rim glow (subtle edge light on waves facing camera)
-          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 3.5);
-          finalColor += uShallowColor * fresnel * 0.18;
+          // 5. Fresnel Aqua Rim Glow
+          float fresnel = pow(1.0 - max(0.0, dot(N, V)), 3.8);
+          finalColor += uCrestColor * fresnel * 0.22;
 
-          // Stylized Cartoon Seafoam on wave crests (noise-based, non-repetitive)
-          vec2 foamUV = vWorldPos.xz * 0.06 + vec2(uTime * 0.06, uTime * 0.03);
+          // 6. Stylized Wave Crest Seafoam
+          vec2 foamUV = vWorldPos.xz * 0.055 + vec2(uTime * 0.05, uTime * 0.03);
           float foamPattern = foamFbm(foamUV);
-          float crestFoam = smoothstep(1.2, 2.4, vWaveHeight) * smoothstep(0.08, 0.35, foamPattern);
+          float crestFoam = smoothstep(1.15, 2.3, vWaveHeight) * smoothstep(0.05, 0.32, foamPattern);
 
-          // Noise-driven foam rim borders (organic edge)
-          float foamEdge = smoothstep(1.0, 1.8, vWaveHeight);
-          float edgeNoise = snoise(vWorldPos.xz * 0.14 + uTime * 0.1);
-          foamEdge *= smoothstep(-0.1, 0.3, edgeNoise);
-          float totalFoam = clamp(crestFoam + foamEdge * 0.5, 0.0, 1.0);
-          finalColor = mix(finalColor, uFoamColor * 0.95, totalFoam);
+          // Crest contour rim
+          float crestEdge = smoothstep(0.95, 1.7, vWaveHeight);
+          float edgeNoise = snoise(vWorldPos.xz * 0.13 + uTime * 0.09);
+          crestEdge *= smoothstep(-0.05, 0.28, edgeNoise);
 
-          // Subsurface scattering hint (light passing through waves)
-          float sss = pow(max(0.0, dot(V, -L + N * 0.3)), 4.0) * smoothstep(-0.5, 1.0, vWaveHeight) * 0.15;
-          finalColor += vec3(0.1, 0.7, 0.6) * sss;
+          // 7. Shoreline Lapping Foam (gentle pulsing rings near island beaches)
+          float shoreDist = vIslandDamp; // 0 near island center, 1 in open sea
+          float shorePulse = sin(uTime * 1.8 - shoreDist * 16.0) * 0.5 + 0.5;
+          float shoreFoam = smoothstep(0.92, 0.48, shoreDist) * smoothstep(0.35, 0.85, shorePulse);
+          shoreFoam *= smoothstep(0.38, 0.48, shoreDist); // Fade deep inside land
 
-          // Distance atmospheric fade
+          // Total combined cartoon seafoam
+          float totalFoam = clamp(crestFoam * 1.2 + crestEdge * 0.55 + shoreFoam * 0.85, 0.0, 1.0);
+          finalColor = mix(finalColor, uFoamColor, totalFoam);
+
+          // 8. Distance Atmospheric Fog
           float dist = length(cameraPosition - vWorldPos);
-          float fogFactor = smoothstep(200.0, 600.0, dist);
+          float fogFactor = smoothstep(220.0, 680.0, dist);
           vec3 fogColor = vec3(0.53, 0.81, 0.92);
-          finalColor = mix(finalColor, fogColor, fogFactor * 0.82);
+          finalColor = mix(finalColor, fogColor, fogFactor * 0.85);
 
           gl_FragColor = vec4(finalColor, 0.96);
         }
@@ -262,28 +300,39 @@ export class Ocean {
     scene.add(this.mesh);
   }
 
-  // CPU Wave Calculation matching vertex shader noise (simplified 4-octave approximation)
-  // Uses the same layering logic but with a JS simplex noise implementation
+  // Island proximity calculation matching GLSL getIslandDamp
+  _getIslandDamp(x, z) {
+    const d0 = Math.hypot(x - 0, z - 0) / 48.0;
+    const d1 = Math.hypot(x - 0, z - -200) / 42.0;
+    const d2 = Math.hypot(x - -40, z - 210) / 44.0;
+    const d3 = Math.hypot(x - 220, z - 40) / 42.0;
+    const d4 = Math.hypot(x - -220, z - -50) / 42.0;
+    const minD = Math.min(d0, d1, d2, d3, d4);
+    if (minD <= 0.42) return 0.0;
+    if (minD >= 1.25) return 1.0;
+    const t = (minD - 0.42) / (1.25 - 0.42);
+    return t * t * (3.0 - 2.0 * t);
+  }
+
+  // CPU Wave Calculation matching vertex shader 1:1
   getWaveHeight(x, z, time = this.time) {
+    const damp = this._getIslandDamp(x, z);
+
     let h = 0;
-
-    // Layer 1: Large organic swell
-    h += this._fbmCPU(x * 0.015 + time * 0.18, z * 0.015 + time * 0.12, time * 0.2) * 2.0;
-
-    // Layer 2: Medium rolling waves
-    h += this._fbmCPU(z * 0.04 - time * 0.3, x * 0.04 + time * 0.22, time * 0.35) * 0.85;
-
+    // Layer 1: Broad swell
+    h += this._fbmCPU(x * 0.014 + time * 0.16, z * 0.014 + time * 0.11, time * 0.18) * 1.9;
+    // Layer 2: Cross rolling swells
+    h += this._fbmCPU(z * 0.038 - time * 0.28, x * 0.038 + time * 0.20, time * 0.30) * 0.80;
     // Layer 3: Fine choppy detail
-    h += this._snoiseCPU(x * 0.09 + time * 0.55, z * 0.09 - time * 0.42) * 0.38;
-
+    h += this._snoiseCPU(x * 0.085 + time * 0.50, z * 0.085 - time * 0.38) * 0.32;
     // Layer 4: Micro ripples
-    h += this._snoiseCPU(x * 0.22 - time * 0.9, z * 0.22 + time * 0.65) * 0.15;
+    h += this._snoiseCPU(x * 0.20 - time * 0.85, z * 0.20 + time * 0.60) * 0.12;
 
-    return h;
+    return h * damp - (1.0 - damp) * 0.45;
   }
 
   getWaveNormal(x, z, time = this.time) {
-    const delta = 0.4;
+    const delta = 0.35;
     const hL = this.getWaveHeight(x - delta, z, time);
     const hR = this.getWaveHeight(x + delta, z, time);
     const hD = this.getWaveHeight(x, z - delta, time);
@@ -295,7 +344,6 @@ export class Ocean {
 
   // Simple 2D simplex-style noise for CPU matching
   _snoiseCPU(x, y) {
-    // Hash-based gradient noise (matches simplex noise character)
     const F2 = 0.5 * (Math.sqrt(3.0) - 1.0);
     const G2 = (3.0 - Math.sqrt(3.0)) / 6.0;
 
@@ -322,8 +370,8 @@ export class Ocean {
     const jj = ((j % 289) + 289) % 289;
 
     const hash = (a) => {
-      let x = ((a * 34.0 + 10.0) * a) % 289;
-      return ((x % 289) + 289) % 289;
+      let val = ((a * 34.0 + 10.0) * a) % 289;
+      return ((val % 289) + 289) % 289;
     };
     const grad = (h, gx, gy) => {
       const r = (h * 0.024390243902439) % 1.0;
@@ -350,7 +398,7 @@ export class Ocean {
     return 130.0 * (n0 + n1 + n2);
   }
 
-  // fBM for CPU matching (3 octaves is enough for ship physics)
+  // fBM for CPU matching (3 octaves)
   _fbmCPU(x, y, t) {
     let value = 0;
     let amplitude = 1.0;
@@ -358,10 +406,12 @@ export class Ocean {
     let px = x, py = y;
 
     for (let i = 0; i < 3; i++) {
-      value += amplitude * this._snoiseCPU(
-        px * frequency + t * 0.4 * (i + 1) * 0.35,
-        py * frequency + t * 0.3 * (i + 1) * 0.35
+      const n = this._snoiseCPU(
+        px * frequency + t * 0.38 * (i + 1) * 0.35,
+        py * frequency + t * 0.28 * (i + 1) * 0.35
       );
+      const peaked = 1.0 - Math.abs(n);
+      value += amplitude * (n * 0.55 + (peaked * 1.3 - 0.3) * 0.45);
       amplitude *= 0.48;
       frequency *= 2.15;
       px += 1.7;

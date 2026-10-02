@@ -48,6 +48,13 @@ class Game {
       boost: false
     };
 
+    // Cannon Hold-to-fire state
+    this.fireInputs = {
+      left: false,
+      right: false,
+      both: false
+    };
+
     // Network sync throttle
     this.netTickTimer = 0;
     this.netTickInterval = 1 / 30; // 30 Hz
@@ -98,7 +105,7 @@ class Game {
 
     // 3. Engine Managers
     this.effects = new EffectsManager(this.scene, this.camera);
-    this.ocean = new Ocean(this.scene, 1200, 140);
+    this.ocean = new Ocean(this.scene, 1400, 512);
     this.map = new MapBuilder(this.scene, this.ocean, this.effects);
     this.cameraFollow = new CameraFollow(this.camera, this.renderer.domElement, this.effects);
     this.projectiles = new ProjectileManager(this.scene, this.ocean, this.effects, this.map);
@@ -298,28 +305,49 @@ class Game {
       });
     }
 
-    // On-screen Cannon HUD buttons
+    // On-screen Cannon HUD buttons (with hold-to-fire support)
     const btnFireLeft = document.getElementById('btn-fire-left');
     if (btnFireLeft) {
-      btnFireLeft.addEventListener('click', () => {
+      const startLeft = (e) => {
+        e.preventDefault();
+        sounds.ensureContext();
+        this.fireInputs.left = true;
         this.fireBroadside('left');
-      });
+      };
+      const stopLeft = () => { this.fireInputs.left = false; };
+      btnFireLeft.addEventListener('mousedown', startLeft);
+      window.addEventListener('mouseup', stopLeft);
+      btnFireLeft.addEventListener('touchstart', startLeft, { passive: false });
+      window.addEventListener('touchend', stopLeft, { passive: true });
     }
     const btnFireRight = document.getElementById('btn-fire-right');
     if (btnFireRight) {
-      btnFireRight.addEventListener('click', () => {
+      const startRight = (e) => {
+        e.preventDefault();
+        sounds.ensureContext();
+        this.fireInputs.right = true;
         this.fireBroadside('right');
-      });
+      };
+      const stopRight = () => { this.fireInputs.right = false; };
+      btnFireRight.addEventListener('mousedown', startRight);
+      window.addEventListener('mouseup', stopRight);
+      btnFireRight.addEventListener('touchstart', startRight, { passive: false });
+      window.addEventListener('touchend', stopRight, { passive: true });
     }
     const btnFireBoth = document.getElementById('btn-fire-both');
     if (btnFireBoth) {
-      btnFireBoth.addEventListener('click', () => {
-        if (!this.playerShip) return;
-        const canLeft = this.playerShip.canFire('left');
-        const canRight = this.playerShip.canFire('right');
-        if (canLeft) this.fireBroadside('left');
-        if (canRight) this.fireBroadside('right');
-      });
+      const startBoth = (e) => {
+        e.preventDefault();
+        sounds.ensureContext();
+        this.fireInputs.both = true;
+        this.fireBroadside('left');
+        this.fireBroadside('right');
+      };
+      const stopBoth = () => { this.fireInputs.both = false; };
+      btnFireBoth.addEventListener('mousedown', startBoth);
+      window.addEventListener('mouseup', stopBoth);
+      btnFireBoth.addEventListener('touchstart', startBoth, { passive: false });
+      window.addEventListener('touchend', stopBoth, { passive: true });
     }
 
     // Boost bar on-screen click/touch
@@ -333,6 +361,9 @@ class Game {
   }
 
   setupInputs() {
+    // Prevent right click menu for flawless starboard cannon firing
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
     window.addEventListener('keydown', (e) => {
       sounds.ensureContext();
 
@@ -359,22 +390,23 @@ class Game {
 
       if (!this.gameActive || !this.playerShip) return;
 
-      // Cannons: Port (Left) broadside -> F or X
+      // Cannons: Port (Left) broadside -> F or X (Hold-to-fire support)
       if (e.code === 'KeyF' || e.code === 'KeyX') {
+        this.fireInputs.left = true;
         this.fireBroadside('left');
       }
       // Cannons: Starboard (Right) broadside -> E or C
       if (e.code === 'KeyE' || e.code === 'KeyC') {
+        this.fireInputs.right = true;
         this.fireBroadside('right');
       }
 
       // Space = Fire double broadside / volley!
       if (e.code === 'Space') {
         e.preventDefault();
-        const canLeft = this.playerShip.canFire('left');
-        const canRight = this.playerShip.canFire('right');
-        if (canLeft) this.fireBroadside('left');
-        if (canRight) this.fireBroadside('right');
+        this.fireInputs.both = true;
+        this.fireBroadside('left');
+        this.fireBroadside('right');
       }
 
       // Quick chat emotes 1, 2, 3, 4
@@ -390,16 +422,28 @@ class Game {
       if (e.code === 'KeyA' || e.code === 'KeyQ' || e.code === 'ArrowLeft') this.keys.left = false;
       if (e.code === 'KeyD' || e.code === 'ArrowRight') this.keys.right = false;
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.keys.boost = false;
+
+      if (e.code === 'KeyF' || e.code === 'KeyX') this.fireInputs.left = false;
+      if (e.code === 'KeyE' || e.code === 'KeyC') this.fireInputs.right = false;
+      if (e.code === 'Space') this.fireInputs.both = false;
     });
 
-    // Mouse click shooting (Left click = Port broadside, Right click = Starboard broadside)
+    // Mouse click & hold shooting (Left click = Port broadside, Right click = Starboard broadside)
     this.renderer.domElement.addEventListener('mousedown', (e) => {
+      sounds.ensureContext();
       if (!this.gameActive || !this.playerShip) return;
       if (e.button === 0 && !e.shiftKey && !e.ctrlKey) {
+        this.fireInputs.left = true;
         this.fireBroadside('left');
       } else if (e.button === 2) {
+        this.fireInputs.right = true;
         this.fireBroadside('right');
       }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.fireInputs.left = false;
+      if (e.button === 2) this.fireInputs.right = false;
     });
   }
 
@@ -695,6 +739,18 @@ class Game {
         this.keys.boost
       );
       this.playerShip.update(dt, this.map);
+
+      // Continuous Hold-To-Fire Barrage
+      if (this.fireInputs.left || this.fireInputs.both) {
+        if (this.playerShip.canFire('left')) {
+          this.fireBroadside('left');
+        }
+      }
+      if (this.fireInputs.right || this.fireInputs.both) {
+        if (this.playerShip.canFire('right')) {
+          this.fireBroadside('right');
+        }
+      }
 
       // Check Loot Pickups (Chests & Rum Barrels)
       const picked = this.map.checkLootPickup(this.playerShip.position);

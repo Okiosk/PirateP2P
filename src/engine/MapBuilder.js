@@ -201,8 +201,8 @@ export class MapBuilder {
 
     seaPinnacles.forEach(p => {
       const rockMesh = assets.getModel(p.model);
-      rockMesh.position.set(p.x, 0.4, p.z);
-      rockMesh.scale.setScalar(p.scale);
+      rockMesh.position.set(p.x, 1.2, p.z);
+      rockMesh.scale.set(p.scale, p.scale * 1.6, p.scale);
       rockMesh.rotation.y = p.rot;
       this.scene.add(rockMesh);
 
@@ -219,14 +219,15 @@ export class MapBuilder {
 
   buildKenneyIsland(cfg) {
     const islandGroup = new THREE.Group();
-    islandGroup.position.set(cfg.centerX, 0, cfg.centerZ);
+    // Elevate the entire island well above sea level
+    islandGroup.position.set(cfg.centerX, 1.5, cfg.centerZ);
 
-    // 1. Modular Ground Patches
+    // 1. Modular Ground Patches (thickened downwards so terrain reaches deep under water)
     if (cfg.tiles) {
       cfg.tiles.forEach(t => {
         const tileMesh = assets.getModel(t.model);
-        tileMesh.position.set(t.x, 0.6, t.z);
-        tileMesh.scale.set(t.scale * 3.2, 2.2, t.scale * 3.2);
+        tileMesh.position.set(t.x, 0.1, t.z);
+        tileMesh.scale.set(t.scale * 3.4, 4.2, t.scale * 3.4);
         tileMesh.rotation.y = t.rot;
         islandGroup.add(tileMesh);
       });
@@ -236,7 +237,7 @@ export class MapBuilder {
     if (cfg.foliage) {
       cfg.foliage.forEach(f => {
         const fMesh = assets.getModel(f.model);
-        fMesh.position.set(f.x, 1.4, f.z);
+        fMesh.position.set(f.x, 1.1, f.z);
         fMesh.scale.setScalar(f.scale);
         fMesh.rotation.y = f.rot;
         islandGroup.add(fMesh);
@@ -247,8 +248,8 @@ export class MapBuilder {
     if (cfg.rocks) {
       cfg.rocks.forEach(r => {
         const rMesh = assets.getModel(r.model);
-        rMesh.position.set(r.x, 1.0, r.z);
-        rMesh.scale.setScalar(r.scale);
+        rMesh.position.set(r.x, 0.7, r.z);
+        rMesh.scale.set(r.scale, r.scale * 1.3, r.scale);
         rMesh.rotation.y = r.rot;
         islandGroup.add(rMesh);
       });
@@ -258,7 +259,7 @@ export class MapBuilder {
     if (cfg.palms) {
       cfg.palms.forEach(p => {
         const pMesh = assets.getModel(p.model);
-        pMesh.position.set(p.x, 1.4, p.z);
+        pMesh.position.set(p.x, 1.1, p.z);
         pMesh.scale.setScalar(p.scale);
         pMesh.rotation.y = p.rot;
         islandGroup.add(pMesh);
@@ -269,7 +270,7 @@ export class MapBuilder {
     if (cfg.structures) {
       cfg.structures.forEach(s => {
         const sMesh = assets.getModel(s.model);
-        sMesh.position.set(s.x, 1.2, s.z);
+        sMesh.position.set(s.x, 0.9, s.z);
         sMesh.scale.setScalar(s.scale);
         sMesh.rotation.y = s.rot;
         islandGroup.add(sMesh);
@@ -280,7 +281,7 @@ export class MapBuilder {
     if (cfg.props) {
       cfg.props.forEach(pr => {
         const prMesh = assets.getModel(pr.model);
-        prMesh.position.set(pr.x, 1.4, pr.z);
+        prMesh.position.set(pr.x, 1.1, pr.z);
         prMesh.scale.setScalar(pr.scale);
         prMesh.rotation.y = pr.rot;
         islandGroup.add(prMesh);
